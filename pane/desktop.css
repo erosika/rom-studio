@@ -1,0 +1,73 @@
+/* The layout, with no colours of its own: separate rounded surfaces, a large preview stage,
+   a physically separate review column on the right and the scene shelf below the preview.
+   Every color is a token: the embedding Desktop paints them (theme.js), a standalone page uses pane.css.
+   No palette, display fonts, app shell, motion or game-image recoloring here. */
+:root { --font: system-ui, -apple-system, "Segoe UI", sans-serif; --r: 14px; --hover: color-mix(in srgb, var(--text) 6%, transparent); --selected: color-mix(in srgb, var(--accent) 14%, var(--card)); --input: var(--bg); --well: color-mix(in srgb, var(--card) 55%, var(--bg)); }
+/* The iframe's host-colored backing stays visible until the first palette arrives. */
+:root[data-embedded]:not([data-host-theme]) { opacity: 0; }
+body { font-family: var(--font); }
+:root[data-host-theme] header h1 { display: none; }
+
+/* tabs: one rounded surface, a head and a tab strip */
+header { position: static; max-width: 1440px; margin: 14px auto 0; padding: 10px 18px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+#tabs { gap: 3px; min-width: 0; border: 0; }
+#tabs a { flex: none; padding: 8px 13px; border: 1px solid transparent; border-radius: 10px; color: var(--quiet); }
+#tabs a[aria-current="true"] { color: var(--accent); background: var(--well); border-color: var(--line); }
+#tabs a:hover, button:hover { background: var(--hover); }
+#status { flex-basis: 100%; margin: 0; }
+#status:empty { display: none; }
+main { max-width: 1440px; margin: 0 auto; padding: 14px; }
+
+/* controls: host tokens, roomy corners */
+button, .play { border-radius: 10px; }
+button { background: var(--card); border-color: var(--line); }
+button[aria-pressed="true"], .chip[aria-pressed="true"], .stream[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+input, .review input, #search { background: var(--input); border-color: var(--line); border-radius: 10px; }
+input::placeholder { color: var(--quiet); opacity: 1; }
+.card { border-radius: var(--r); }
+
+/* Now: stage | review, shelf under the stage, play and the scene list under the review */
+#tab-now { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "review" "shelf" "play" "history" "ladder"; gap: 14px; align-items: start; }
+#feed, #feed-body, #feed-body > .entry.first { display: contents; }
+#feed-body > .card, .entry.first > .stage { grid-area: stage; }
+.entry.first > .stage { min-width: 0; text-align: left; padding: 24px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); }
+.entry.first .did { font-size: 24px; line-height: 1.2; font-weight: 500; margin: 6px 0 16px; }
+/* the actual picture, as large as the stage allows, at its own aspect ratio with square pixels */
+/* capped so the shelf stays in view: game pictures are 3:2, so 93vh wide is 62vh tall */
+.entry.first .shot { max-width: none; width: min(100%, 93vh); margin: 0 auto 8px; padding: 0; overflow: hidden; background: var(--bg); border: 1px solid var(--line); border-radius: 12px 40px 12px 12px; }
+.entry.first .shot img, .entry.first .beforeafter img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.empty-preview { display: grid; place-content: center; gap: 6px; text-align: center; min-height: 260px; background: var(--well); border: 1px solid var(--line); border-radius: 12px 40px 12px 12px; color: var(--quiet); }
+.empty-preview strong { font-size: 17px; font-weight: 500; color: var(--text); }
+.entry.first > .review { grid-area: review; align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 22px 20px; background: var(--well); border: 1px solid var(--line); border-radius: var(--r); }
+.review h3 { order: -3; margin: 0; font-size: 21px; font-weight: 500; }
+.review > .quiet { order: -2; margin: 0; }
+.review input { order: -1; min-height: 44px; }
+.review .pair { display: grid; gap: 7px; }
+.review .pair button { display: flex; align-items: center; gap: 10px; min-height: 44px; text-align: left; }
+.console-key { display: inline-grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 600 12px/1 ui-monospace, monospace; }
+button[aria-pressed="true"] .console-key { background: var(--on-accent); color: var(--accent); }
+/* the scene shelf hangs under the stage */
+#streams-box { grid-area: shelf; min-width: 0; padding: 12px 18px; background: var(--well); border: 1px solid var(--line); border-radius: var(--r); }
+#streams-h { margin: 0 0 8px; }
+.stream { border-radius: 10px; }
+#play { grid-area: play; padding: 16px 20px; background: var(--well); border: 1px solid var(--line); border-radius: var(--r); }
+#play .play { display: flex; justify-content: center; min-height: 44px; align-items: center; }
+#feed-body > .history { grid-area: history; min-width: 0; padding: 12px 20px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); }
+.history > summary { padding: 6px 0; color: var(--text); }
+#ladder { grid-area: ladder; }
+@media (min-width: 900px) {
+  #tab-now { grid-template-columns: minmax(0, 1fr) 315px; grid-template-areas: "stage review" "shelf review" "history play" "history ladder"; row-gap: 0; column-gap: 14px; }
+  /* stage and shelf are one joined surface split in two: the review stands apart */
+  .entry.first > .stage { border-radius: var(--r) var(--r) 0 0; }
+  #streams-box { border-top: 0; border-radius: 0 0 var(--r) var(--r); }
+  #play, #feed-body > .history { margin-top: 14px; }
+  #ladder { margin-top: 14px; }
+}
+@media (max-width: 599px) {
+  header { margin: 8px 8px 0; padding: 8px 10px; }
+  main { padding: 8px; }
+  #tab-now { gap: 10px; }
+  .entry.first > .stage, .entry.first > .review { padding: 16px; }
+  .entry.first .did { font-size: 19px; }
+  #tabs a, button, .play, summary { min-height: 44px; }
+}

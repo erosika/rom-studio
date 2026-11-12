@@ -1,0 +1,1 @@
+{ "name": "player", "private": true, "dependencies": { "@thenick775/mgba-wasm": "2.6.0" } }

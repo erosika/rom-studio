@@ -1,0 +1,32 @@
+name: rom-studio
+repo: "<public https URL>"
+sha: "<40-hex commit of the public repo>"
+version: "0.1.0"
+title: ROM Studio
+description: "Make your own small game by talking with your agent, one scene at a time, from a decomp (the community-made source of an original handheld game) that you supply. A pane in the desktop app shows each change as a plain sentence with a picture taken from the running game, a play link, the scene list, a gallery, maps, music, the dialogue with your notes on it, a source search, the agent's open questions and settings; you answer with Looks right or Needs work. The package also carries a command-line kit the agent runs (set up, build, play, pictures, button presses, maps, notes, keep, undo, patch; the same 26 commands as an MCP server you can add yourself), a browser player with a flash guard that is always on, and the make-your-game skill, which the plugin registers. ROM Studio names and fetches no game or engine; sharing is a patch, never a built game. The plugin registers no tools, hooks or middleware. Disclosure — once you set a game folder, the plugin starts one background process, bun pane/server.ts, bound to 127.0.0.1 (port 8778 by default), and stops it on unload; from 127.0.0.1 that page needs no sign-in, so programs on your own computer can read the game folder through it, use its controls and start a setup into an empty game folder; pages on other sites and requests under a host name that is not this computer's are refused, uploads are size-limited, and it is reachable from another device only if you start it yourself with --bind, and then only through the link with its key (kept in the plugin's data folder). The kit, run by your agent under Hermes's normal approvals, runs shell commands (git, make, compilers, python3, ffmpeg, curl, openssl) and your decomp's own build scripts, so use a decomp you trust. kit setup, never plugin load, downloads the script compiler (a prebuilt Linux program from its author's GitHub release, checked against a sha256 in kit/kit.ts) and the npm package @thenick775/mgba-wasm 2.6.0 (pinned by sha512 in player/bun.lock), and compiles a small headless emulator from kit/emu/studio-emu.c against a libmgba you build yourself; these land inside the plugin folder. kit play serves the built game on 127.0.0.1, and with --phone on your private network over https with a self-made certificate and a key in the link. The optional base patches for one engine version are not shipped; only a game built with them has a START menu agent entry, which in the player sends the words you type to your own hermes command (hermes chat, one conversation named rom-studio-game, stopped after 60 seconds) with your agent's normal tools and approvals and no flag that changes them; hermes_link false in the game folder's settings.json turns it off. The player also passes /pane/ on to the local pane, and ROM_STUDIO_HOSTS lists extra host names both servers answer to, for an owner who puts their own reverse proxy in front. It writes to the game folder, to <HERMES_HOME>/plugin-data/rom-studio and to its own caches; no telemetry, no credentials, no .env reads, no self-update, nothing sent anywhere. Linux only."
+maintainer: erosika
+tier: community
+category: desktop
+requires_hermes: ">=0.21.6"
+docs_url: "<public https URL>/blob/<40-hex commit of the public repo>/README.md"
+image: "https://raw.githubusercontent.com/<owner>/<repo>/<40-hex commit of the public repo>/docs/images/banner.png"
+screenshots:
+  - "https://raw.githubusercontent.com/<owner>/<repo>/<40-hex commit of the public repo>/docs/images/pane-now.png"
+  - "https://raw.githubusercontent.com/<owner>/<repo>/<40-hex commit of the public repo>/docs/images/pane-gallery.png"
+  - "https://raw.githubusercontent.com/<owner>/<repo>/<40-hex commit of the public repo>/docs/images/pane-scenes-phone.png"
+readme: true
+platforms: [linux]
+capabilities:
+  provides_tools: []
+  provides_hooks: []
+  provides_middleware: []
+  requires_env: []
+known_issues:
+  - "Not yet seen running inside the desktop app: the plugin passes hermes plugins validate and doctor and its halves were run outside a host, but the pane in the app, the feed event arriving and the skill loaded through the plugin are untested."
+  - "Linux only. macOS and Windows are not supported (the build scripts use Linux tools and the script compiler download is a Linux program); Windows through WSL has not been tried."
+  - "Needs bun, git and a toolchain for the game that you install yourself: make, python3 with Pillow, C and C++ compilers, flock, libpng with pkg-config, arm-none-eabi-gcc 14.2, cmake and a libmgba 0.10.5 you build once; ffmpeg for sound. kit status lists what is missing and how to get it."
+  - "You bring the decomp and, to make a patch, your own copy of the original game file. ROM Studio includes and fetches neither. The first build takes about 7 minutes and a game folder about 1 GB."
+  - "The optional base (calm changes inside the game, quick start, the test hook, the in-game agent entry) is patches for one version of one engine and is not shipped. Without it the flag, creature-gift and exact-text steps are unavailable, each new build plays through the original opening once, and the in-game agent link is absent. The player's flash guard is always on regardless."
+  - "The phone link of the player (kit play --phone) has not been tried on a real phone. The kit's MCP server has been tried over stdio by hand, not inside Hermes."
+  - "Setup's caches (headless emulator, script compiler, browser emulator) live inside the plugin folder; if an update removes them, run kit setup again."
+  - "A setting change needs a restart of Hermes. The kit does not read the plugin's settings: for a game folder other than the default, also set ROM_STUDIO_GAME where your agent's commands run."

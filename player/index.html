@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>play</title>
+<style>
+  /* Nothing here moves by itself: no animation, no transition, anywhere. */
+  *, *::before, *::after { animation: none !important; transition: none !important; box-sizing: border-box; }
+  html, body { margin: 0; background: #14161a; color: #b9bec7; font: 15px/1.4 system-ui, sans-serif; }
+  body { min-height: 100dvh; display: flex; justify-content: center; }
+  main { width: 100%; max-width: 720px; padding: 8px; }
+  .screen { position: relative; background: #000; max-height: 62dvh; aspect-ratio: 3 / 2; margin: 0 auto; }
+  #screen { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+  /* The emulator draws here and it is never visible; the visible screen is the guarded copy. */
+  #emu { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+  #status { margin: 6px 0; min-height: 1.4em; text-align: center; color: #7d8590; }
+  #ask { display: flex; gap: 8px; margin: 6px 0; } #ask[hidden] { display: none; }
+  #ask input { flex: 1; min-width: 0; font: inherit; color: #e6e9ee; background: #1d2026; border: 1px solid #3a3f49; border-radius: 10px; padding: 0 12px; min-height: 44px; }
+  #ask button { min-width: 0; min-height: 44px; padding: 0 14px; }
+  #pad { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .dpad { display: grid; grid-template: repeat(3, 56px) / repeat(3, 56px); justify-content: start; }
+  .ab { display: flex; gap: 14px; justify-content: end; align-items: center; }
+  .ss { grid-column: 1 / 3; display: flex; gap: 14px; justify-content: center; }
+  button { font: inherit; color: #b9bec7; background: #252931; border: 1px solid #3a3f49; border-radius: 10px; min-width: 56px; min-height: 56px; touch-action: none; }
+  button.held { background: #3a4150; }
+  .ab button { border-radius: 50%; width: 68px; height: 68px; }
+  .ss button { min-height: 36px; padding: 0 14px; }
+  .up { grid-area: 1 / 2; } .left { grid-area: 2 / 1; } .right { grid-area: 2 / 3; } .down { grid-area: 3 / 2; }
+  .opts { margin-top: 10px; text-align: center; color: #7d8590; }
+  @media (pointer: fine) { #pad { opacity: 0.85; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="screen">
+    <canvas id="screen" width="240" height="160"></canvas>
+    <canvas id="emu" width="240" height="160" aria-hidden="true"></canvas>
+  </div>
+  <p id="status" aria-live="polite">loading</p>
+  <form id="ask" hidden>
+    <input id="askText" type="text" maxlength="400" autocomplete="off" enterkeyhint="send" aria-label="your words" placeholder="Type here, then press Enter">
+    <button type="submit">send</button>
+    <button type="button" id="askCancel">cancel</button>
+  </form>
+  <p class="opts" id="points"><button type="button" id="pointSave">save point</button> <button type="button" id="pointLoad">load save point</button></p>
+  <div id="pad">
+    <div class="dpad">
+      <button data-btn="Up" class="up" aria-label="Up">▲</button>
+      <button data-btn="Left" class="left" aria-label="Left">◀</button>
+      <button data-btn="Right" class="right" aria-label="Right">▶</button>
+      <button data-btn="Down" class="down" aria-label="Down">▼</button>
+    </div>
+    <div class="ab">
+      <button data-btn="B">B</button>
+      <button data-btn="A">A</button>
+    </div>
+    <div class="ss">
+      <button data-btn="Select">select</button>
+      <button data-btn="Start">start</button>
+    </div>
+  </div>
+  <p class="opts"><label><input type="checkbox" id="sound"> sound</label> &nbsp; keyboard: arrows, X = A, Z = B, Enter = start, Backspace = select</p>
+</main>
+<script type="module" src="/play.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "player",
+      "dependencies": {
+        "@thenick775/mgba-wasm": "2.6.0",
+      },
+    },
+  },
+  "packages": {
+    "@thenick775/mgba-wasm": ["@thenick775/mgba-wasm@2.6.0", "", {}, "sha512-Ia2tg44wHYMmkv2+rTGHkFcCdtJ8cWuz6QuPAsm2/fk413bmLMu3LykI28zCr1zWXgbc83eQxlVQTuu6qhgkbw=="],
+  }
+}

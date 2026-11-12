@@ -1,0 +1,33 @@
+name: rom-studio
+version: 0.1.0
+manifest_version: 2
+label: ROM Studio
+description: Make a game from a decomp you supply by talking with your agent. A pane shows each change as a sentence with a real picture from the running game, and a play link.
+author: erosika
+license: MIT
+homepage: "https://github.com/erosika/rom-studio"
+tags: [games, desktop, teaching]
+# Every surface used (config_schema settings, on_unload, the plugin event broadcast, the desktop panes and routes areas,
+# dashboard plugin routes, register_skill) is present in 0.21.6, the oldest release checked. Run only on 0.23.1.
+requires_hermes: ">=0.21.6"
+# Linux is the only system it has been run on, and the kit's build tools are Linux ones.
+platforms:
+  - linux
+provides_tools: []
+provides_hooks: []
+config_schema:
+  game_folder:
+    type: str
+    default: ""
+    label: Game folder
+    description: The folder that holds your game (made by kit setup, or a new empty folder to set one up in from the pane's Source tab). While this is empty the plugin starts nothing.
+  pane_url:
+    type: str
+    default: ""
+    label: Pane address (optional)
+    description: The address of a ROM Studio page that is already running, for example one you started yourself so a phone can open it (then the whole link with its key, as it printed). When set, the plugin shows that page and starts none.
+  pane_port:
+    type: int
+    default: 8778
+    label: Pane port
+    description: The port on this computer (127.0.0.1) for the page the plugin starts.

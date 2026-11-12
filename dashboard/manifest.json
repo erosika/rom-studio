@@ -1,0 +1,1 @@
+{"name": "rom-studio", "label": "ROM Studio", "version": "0.1.0", "description": "Tells the ROM Studio pane where its page is.", "api": "plugin_api.py", "entry": "dist/index.js", "tab": {"hidden": true}}

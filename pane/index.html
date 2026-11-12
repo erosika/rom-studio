@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>ROM Studio</title>
+<script>if (window.parent !== window && new URLSearchParams(location.search).get("host") === "desktop") document.documentElement.dataset.embedded = "true"; else try { const t = localStorage.paneTheme; if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch {}</script>
+<link rel="stylesheet" href="pane.css">
+<link rel="stylesheet" href="desktop.css">
+</head>
+<body>
+<header>
+  <h1>ROM Studio</h1>
+  <nav id="tabs" aria-label="Views">
+    <a href="#now">Now</a><a href="#gallery">Gallery</a><a href="#scenes">Scenes</a><a href="#maps">Maps</a><a href="#music">Music</a><a href="#dialogue">Dialogue</a><a href="#source">Source</a><a href="#lore">Lore</a><a href="#decisions" id="tab-link-decisions">Decisions</a><a href="#settings">Settings</a>
+  </nav>
+  <p id="status"></p>
+  <button type="button" id="theme" class="theme" aria-label="Switch between dark and light"></button>
+</header>
+<main id="tab-now" class="tab two">
+  <section id="feed" aria-labelledby="feed-h">
+    <h2 id="feed-h" class="sr">Latest update</h2>
+    <div id="feed-body" class="stack"></div>
+  </section>
+  <section id="streams-box" aria-labelledby="streams-h">
+    <h2 id="streams-h">Streams</h2>
+    <div id="grouping" class="chips"></div>
+    <div id="streams" class="streams"></div>
+  </section>
+  <section id="play">
+    <a id="play-link" class="play" target="_blank" rel="noopener">Play your game</a>
+    <p id="play-how" class="built quiet"></p>
+    <p id="built" class="built quiet"></p>
+    <div id="waiting"></div>
+  </section>
+  <section id="ladder" class="card" aria-labelledby="ladder-h">
+    <h2 id="ladder-h">Your game</h2>
+    <div id="ladder-body"></div>
+  </section>
+</main>
+<main id="tab-gallery" class="tab" hidden>
+  <div id="shelves" class="stack"></div>
+  <div id="drop" class="card send">
+    <label for="ref-file">Send a reference picture to the agent</label>
+    <input type="file" id="ref-file" multiple accept="image/png,image/jpeg,image/webp,image/gif">
+    <p class="quiet">Choose pictures, or drop them here.</p>
+    <p id="ref-sent" class="quiet" role="status"></p>
+  </div>
+  <h2 id="pictures-count"></h2>
+  <input type="search" id="search" placeholder="Search file names" aria-label="Search file names">
+  <div id="chips" class="chips"></div>
+  <div id="comparing"></div>
+  <div id="grid" class="grid"></div>
+</main>
+<main id="tab-scenes" class="tab stack" hidden></main>
+<main id="tab-maps" class="tab stack" hidden></main>
+<main id="tab-music" class="tab" hidden></main>
+<main id="tab-dialogue" class="tab" hidden></main>
+<main id="tab-source" class="tab" hidden></main>
+<main id="tab-lore" class="tab" hidden></main>
+<main id="tab-decisions" class="tab stack" hidden></main>
+<main id="tab-settings" class="tab stack" hidden></main>
+<dialog id="viewer" aria-label="Picture"></dialog>
+<script src="theme.js"></script>
+<script src="pane.js"></script>
+<script src="music.js"></script>
+<script src="source.js"></script>
+<script src="dialogue.js"></script>
+</body>
+</html>

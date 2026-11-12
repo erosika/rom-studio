@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# kit/kit: the one entry point. Finds bun and hands over to kit.ts. Run `kit help`.
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+BUN="$(command -v bun || true)"; [ -x "$BUN" ] || BUN="$HOME/.bun/bin/bun"
+[ -x "$BUN" ] || { echo "kit needs bun, which is not installed. Get it with:  curl -fsSL https://bun.sh/install | bash   then run this again."; exit 1; }
+exec "$BUN" "$HERE/kit.ts" "$@"

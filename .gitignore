@@ -1,0 +1,29 @@
+# dependencies and caches
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+# built games, saves and emulator states: never tracked, never shared
+*.gba
+*.elf
+*.sav
+*.ss
+*.bps
+out/
+# what setup builds or fetches on the user's machine
+kit/emu/bin/
+# certificates and keys (the player's phone link makes its own)
+.cert/
+*.pem
+*.key
+*.crt
+key.txt
+.env
+# the pane's own state, scratch files
+pane/data/
+*.log
+*.tmp
+.DS_Store
+# local notes that never ship
+docs/audit/
