@@ -70,7 +70,7 @@ test("an archive with a path that climbs out is refused and nothing is written; 
   const dest = join(work, "unpacked");
   expect(await unpack(good, dest)).toBe(2);
   expect(treeRoot(dest)).toBe(join(dest, "my-tree")); expect(readdirSync(join(dest, "my-tree")).sort()).toEqual(["Makefile", "src"]);
-  const swells = archive("swells.tar.gz", 't = tarfile.open(to, "w:gz"); i = tarfile.TarInfo("tree/Makefile"); i.size = 5 * 10**9; t.addfile(i); t.close()'); // says it holds 5 GB
+  const swells = archive("swells.tar.gz", 't = tarfile.open(to, "w:gz"); i = tarfile.TarInfo("tree/Makefile"); i.size = 5 * 10**9; t.fileobj.write(i.tobuf(t.format, t.encoding, t.errors)); t.close()'); // says it holds 5 GB
   await expect(unpack(swells, join(work, "too-much"))).rejects.toThrow(/unpacks to more than 4 GB/); expect(existsSync(join(work, "too-much"))).toBe(false);
   const noTree = archive("no-tree.zip", 'z = zipfile.ZipFile(to, "w"); z.writestr("notes/readme.txt", "hello"); z.close()');
   const r = await ask("PUT", "/source/archive/no-tree.zip", readFileSync(noTree), none); expect(r.status).toBe(400); expect(await r.text()).toContain("does not look like a decomp");
