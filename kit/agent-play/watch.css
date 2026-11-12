@@ -1,0 +1,17 @@
+/* Nothing here moves on its own: no transitions, no animations. */
+:root { color-scheme: dark; --bg: #0e0e0f; --fg: #d8d8d4; --dim: #8a8a86; --line: #2a2a2c; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+main { display: grid; grid-template-columns: auto minmax(16rem, 1fr); gap: 1.25rem; padding: 1.25rem; max-width: 80rem; margin: 0 auto; }
+#stage { min-width: 240px; }
+#screen { display: block; image-rendering: crisp-edges; image-rendering: pixelated; background: #000; border: 1px solid var(--line); }
+#steps { grid-column: 1 / -1; }
+h2 { margin: 1rem 0 0.2rem; font-size: 11px; font-weight: normal; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+p { margin: 0; overflow-wrap: anywhere; }
+#status { color: var(--dim); }
+#thought { font-size: 16px; }
+ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+li { display: grid; grid-template-columns: 4.5rem minmax(8rem, 14rem) 1fr; gap: 0.75rem; padding: 0.3rem 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+li .n, li .result { color: var(--dim); }
+li .result { grid-column: 2 / -1; }
+@media (max-width: 44rem) { main { grid-template-columns: 1fr; } li { grid-template-columns: 3.5rem 1fr; } li .thought, li .result { grid-column: 2; } }

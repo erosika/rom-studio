@@ -101,6 +101,21 @@ test("an answer given in the pane reaches the agent through kit reviews, and a l
   expect(s.feed.at(-1)).toMatchObject({ did: "The lamp is dimmer now.", by: "art", answers: first.t });
 });
 
+test("a note alone, neither right nor needs work, waits for the agent the same way", async () => {
+  const second = (await stateNow()).feed[1];
+  expect((await post("review", { id: second.id, entry: second.t, scene: second.scene, verdict: "note", note: "   " })).status).toBe(400);
+  expect((await post("review", { id: second.id, entry: second.t, scene: second.scene, verdict: "note", note: "2 is best" })).status).toBe(200);
+  expect((await stateNow()).reviews[second.id]).toMatchObject({ verdict: "note", note: "2 is best", handled: null });
+  const open = JSON.parse(kit("reviews", "--open", "--json"));
+  expect(open).toHaveLength(1);
+  expect(open[0]).toMatchObject({ entry: second.t, verdict: "note", note: "2 is best" });
+  expect(kit("reviews", "--open")).toContain("NOTE");
+  kit("note", "Two is in.", "--scene", second.scene ?? "1", "--answers", second.t);
+  expect(JSON.parse(kit("reviews", "--open", "--json"))).toHaveLength(0);
+  expect(kit("reviews")).toContain("note (answered)");
+  expect(readFileSync(join(import.meta.dir, "pane.js"), "utf8")).toContain('"Send note"');
+});
+
 test("a question asked with kit decide waits in the pane, and the answer given there comes back through kit decisions", async () => {
   expect(kit("decide", "Which name for the harbour town?", "--options", "SALT QUAY|GULL REACH", "--recommend", "SALT QUAY", "--scene", "HARBOUR TOWN")).toContain("asked:");
   const d = (await stateNow()).decisions.at(-1);

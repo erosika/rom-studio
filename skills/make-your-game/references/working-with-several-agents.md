@@ -65,7 +65,7 @@ once); **[not run]** for bringing the work back together at the end.
   user sees which have gone quiet.
 - **The user answers in the pane, not in the chat.** Each agent runs `kit reviews --open --scene
   "<its stream or place>"` when it starts and after each step. A "needs work" with a note is the
-  user's correction: fix that one thing, then `kit note "<what changed>" --shot <png> --before
+  user's correction (a note alone is a remark or a pick: act on it the same way): fix that one thing, then `kit note "<what changed>" --shot <png> --before
   <old png> --answers <entry time>` so it stops showing as waiting.
 - **Choices that are the user's go to `kit decide`**, with your recommended option, and the agent
   carries on. The lead reads `kit decisions` at each checkpoint and passes answers on. Do not

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0
+
+- **An agent plays the game.** `kit agent-play` lets an agent play the built game a step at a time:
+  your own agent as a command (it gets a short list of variables, no keys), or a model by its key
+  (`--provider anthropic|openai`; the game's pictures and text go to that API and nowhere else).
+  Caps on steps and time, a save that carries on, a log with every picture, and a read-only page
+  to watch on behind the flash guard. Not served over MCP.
+- **Player.** Save and load under the picture (a save point and the game's own save, kept per
+  game, with export and import, and what survives a rebuild said plainly); a text line that types
+  into the game's naming screen on a phone; a pace line and low power; plain messages for a
+  missing game, a lost connection, a newer build and a browser that lacks something; it carries on
+  after the tab sleeps. A page that an older running player cannot serve says so, and `kit play`
+  starts a fresh player.
+- **Pane.** Send note saves a note on its own, neither "looks right" nor "needs work"; a note waits
+  for the agent like "needs work", and `kit reviews --open` lists it as NOTE.
+- **Patch.** `kit patch` also refuses when the built game was made with private scenes on, or
+  before that setting last changed.
+
 ## 0.1.0
 
 The first version packaged for the Hermes plugin catalog.

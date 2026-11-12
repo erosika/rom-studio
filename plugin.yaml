@@ -1,5 +1,5 @@
 name: rom-studio
-version: 0.1.0
+version: 0.2.0
 manifest_version: 2
 label: ROM Studio
 description: Make a game from a decomp you supply by talking with your agent. A pane shows each change as a sentence with a real picture from the running game, and a play link.

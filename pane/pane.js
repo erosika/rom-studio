@@ -74,7 +74,7 @@ const QUIET_MIN = 20, ACTIVE_MIN = 90, SHOW = 40; // a stream with nothing for t
 const sceneName = (e) => e.scene || "No scene";
 // tiles are per stream (who is working: the entry's `by`, else its scene) or per scene; the user switches
 const groupName = (e) => (ui.group === "stream" && e.by) || sceneName(e);
-const waiting = (e) => { const r = S.reviews?.[e.id]; return r?.verdict === "work" && !r.handled; };
+const waiting = (e) => { const r = S.reviews?.[e.id]; return (r?.verdict === "work" || r?.verdict === "note") && !r.handled; };
 const sendJson = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const isNew = (e) => Date.parse(e.t) > seen;
 // the picture of a feed entry: one in shots/, or one the feed names elsewhere (another copy of the game)
@@ -101,14 +101,16 @@ function reuse(box, key, make) {
 const settle = (box) => { made[box] = made[`${box} next`]; delete made[`${box} next`]; };
 const details = (e, key) => e.detail && h("details", { "data-key": key }, h("summary", {}, "Details"), h("pre", {}, String(e.detail)));
 // one feed entry; `top` is the newest on the screen (larger), `last` the newest of its scene (shows what is next)
-// the user's answer to one entry: two buttons and a note, kept in reviews.jsonl for the agent to read
+// the user's answer to one entry: two buttons and a note, or the note alone, kept in reviews.jsonl for the agent to read
 function review(e) {
   const r = S.reviews?.[e.id], note = h("input", { type: "text", placeholder: "A note for the agent (optional)", "aria-label": "A note for the agent", maxlength: 500, value: r?.note || null });
   const say = (verdict) => async () => { const res = await sendJson("review", { id: e.id, entry: e.t, scene: e.scene, verdict, note: note.value }).catch(() => null); if (!res?.ok) $("status").textContent = "Your answer was not saved. Is the studio running?"; await refresh(); };
   return h("div", { class: "review" },
     h("h3", {}, "Review this scene"), h("p", { class: "quiet" }, "Tell your agent what to keep or change."),
-    r && h("p", { class: r.verdict === "work" && !r.handled ? "said work" : "said" }, r.verdict === "right" ? "You said: looks right." : r.handled ? `You said: needs work. A later entry answers it (${when(r.handled)}).` : "You said: needs work. The agent has not answered yet.", r.note && ` “${r.note}”`),
-    h("div", { class: "pair" }, button([h("span", { class: "console-key", "aria-hidden": "true" }, "A"), "Looks right"], say("right"), { "aria-pressed": String(r?.verdict === "right") }), button([h("span", { class: "console-key", "aria-hidden": "true" }, "B"), "Needs work"], say("work"), { "aria-pressed": String(r?.verdict === "work") })), note);
+    r && h("p", { class: r.verdict !== "right" && !r.handled ? "said work" : "said" }, r.verdict === "right" ? "You said: looks right." : `${r.verdict === "note" ? "You left a note." : "You said: needs work."} ${r.handled ? `A later entry answers it (${when(r.handled)}).` : "The agent has not answered yet."}`, r.note && ` “${r.note}”`),
+    h("div", { class: "pair" }, button([h("span", { class: "console-key", "aria-hidden": "true" }, "A"), "Looks right"], say("right"), { "aria-pressed": String(r?.verdict === "right") }), button([h("span", { class: "console-key", "aria-hidden": "true" }, "B"), "Needs work"], say("work"), { "aria-pressed": String(r?.verdict === "work") })), note,
+    // a note alone: saved without saying right or needs work; with the box empty, a tap puts you in the box
+    button("Send note", () => (note.value.trim() ? say("note")() : note.focus()), { class: "send-note", "aria-pressed": String(r?.verdict === "note") }));
 }
 function entry(e, { top, last, pics, card } = {}) {
   const pic = picOf(e), was = beforeOf(e);
@@ -137,7 +139,7 @@ function drawStreams() {
     return reuse("streams", JSON.stringify([s.name, s.n, s.fresh, s.work, s.pic?.url, quiet, on]), () => button([
       s.pic ? h("img", { src: s.pic.url, alt: "" }) : h("span", { class: "nopic" }, "no picture yet"),
       h("strong", {}, s.name), h("span", {}, `${s.n} · ${when(s.last.t)}`), quiet && h("span", {}, quiet), s.fresh > 0 && h("b", { class: "fresh" }, `${s.fresh} new`),
-      s.work > 0 && h("b", { class: "work" }, `${s.work} needs work`),
+      s.work > 0 && h("b", { class: "work" }, `${s.work} waiting for the agent`),
     ], pick(s.name), { class: still ? "stream still" : "stream", "aria-pressed": String(on), title: `${s.name}: ${s.last.did}` }));
   });
   settle("streams");
@@ -381,7 +383,7 @@ function render() {
   const open = (S.decisions ?? []).filter((d) => d.answer === null).length, work = S.feed.filter(waiting).length;
   $("tab-link-decisions").textContent = open ? `Decisions · ${open}` : "Decisions";
   draw("waiting", [open, work], () => [open > 0 && h("a", { href: "#decisions", class: "wait" }, `${count(open, "question")} from the agent ${open === 1 ? "is" : "are"} waiting for you`),
-    work > 0 && h("p", { class: "quiet" }, `${count(work, "entry", "entries")} you marked “needs work” ${work === 1 ? "has" : "have"} no answer from the agent yet.`)]);
+    work > 0 && h("p", { class: "quiet" }, `${count(work, "entry", "entries")} you marked “needs work” or left a note on ${work === 1 ? "has" : "have"} no answer from the agent yet.`)]);
   draw("ladder-body", [S.scenes, S.scenesFrom], drawLadder);
   drawGallery();
   draw("tab-scenes", [S.scenes, S.feed, S.shots, S.kept, seen], drawScenes);

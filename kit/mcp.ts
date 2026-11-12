@@ -90,7 +90,7 @@ async function call(name: string, a: Record<string, any>) {
 }
 
 async function handle(m: any): Promise<any> {
-  if (m.method === "initialize") return { protocolVersion: m.params?.protocolVersion ?? "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "rom-studio-kit", version: "0.1.0" } };
+  if (m.method === "initialize") return { protocolVersion: m.params?.protocolVersion ?? "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "rom-studio-kit", version: "0.2.0" } };
   if (m.method === "ping") return {};
   if (m.method === "tools/list") return { tools: Object.entries(TOOLS).map(([name, [description, properties, required]]) => ({ name, description, inputSchema: { type: "object", properties, required } })) };
   if (m.method === "tools/call") return call(m.params?.name, m.params?.arguments ?? {});

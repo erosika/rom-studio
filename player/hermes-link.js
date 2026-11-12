@@ -14,6 +14,8 @@ const OFF = { openSeq: 8, msgSeq: 9, shownSeq: 10, version: 11, msgKind: 12, cho
 const ECHO = 1, CHOICE = 2, TYPE = "TYPE";
 let memory = null;
 
+/** The emulator's memory, once it has been made. */
+export const gameMemory = () => memory;
 /** Call before the emulator's script is loaded. */
 export function captureMemory() {
   const Real = WebAssembly.Memory;

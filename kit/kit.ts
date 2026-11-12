@@ -52,7 +52,8 @@ const HELP = `kit: build, play and look at your game. One game folder, one build
            also: --by "<who or which stream>"  --before <png> (shown beside --shot)  --answers <entry time> (you dealt with a "needs work")
                  --lore <id> (the sentence also goes under Lineage in lore/<id>.md)
   kit reviews [--open] [--scene "<name>"] [--json]   what the user answered to feed entries in the pane ("looks right" / "needs work" and a
-                             note); --open: only "needs work" that no later entry has answered. Look here before starting and after each step
+                             note, or a note alone); --open: only "needs work" and notes that no later entry has answered. Look here before
+                             starting and after each step
   kit decide "<question>" [--options "a|b|c"] [--recommend "<option>"] [--scene "<name>"] [--detail "<one line>"]   ask the user to choose;
                              it waits in the pane's Decisions tab.      kit decisions [--open] [--json]   the questions and the answers given
   kit settings [key] [value] read settings.json, one key, or set a key (a value that is JSON is stored as JSON)
@@ -60,6 +61,8 @@ const HELP = `kit: build, play and look at your game. One game folder, one build
   ${MUSIC_HELP}
   ${FIND_HELP}
   ${DIALOGUE_HELP}
+  kit agent-play --agent "<command>" | --provider <name> --model <id> [--steps 100] [--watch [port]]   an agent plays the built game, a step
+                             at a time: your own agent as a command, or a model by its key; a page to watch on (kit agent-play help says all)
   kit keep "<scene name>"    commit the game folder with that message and tick the scene in game.md
   kit undo [--yes]           back to the last kept scene; with nothing changed since, takes back the last kept scene
   kit patch [--original <file>] [--file <out.bps>]   your game as one patch file (default out/game.bps) for someone else to apply to
@@ -238,7 +241,7 @@ async function play() {
   } catch { r = null; }
   if (flag("stop")) { if (r) process.kill(r.pid); rmSync(rec, { force: true }); console.log(r ? "player stopped" : "the player was not running"); return; }
   needRom();
-  if (r && (!phone || r.phone) && (await fetch(r.lines[0]!.split(/\s+/).pop()!).then((x) => x.ok, () => false))) { console.log(`${r.lines.join("\n")}\n(already running; reload the page to get the latest build)`); return; }
+  if (r && (!phone || r.phone) && (await fetch(`${r.lines[0]!.split(/\s+/).pop()!}game`).then((x) => x.ok, () => false))) { console.log(`${r.lines.join("\n")}\n(already running; the open page offers each new build)`); return; } // asked for the game, not the page: a player from before an update does not know that question and is started again
   if (r) process.kill(r.pid);
   if (!existsSync(join(REPO, "player/node_modules"))) die("The player's files are missing. Run: kit setup");
   writeFileSync(log, "", { mode: 0o600 }); chmodSync(log, 0o600); // it holds the phone link with its key
@@ -269,10 +272,12 @@ function note() {
 function reviewsCmd() {
   needGame();
   const open = flag("open"), scene = opt("scene"), asJson = flag("json");
-  const list = reviews(GAME).filter((r) => (!open || (r.verdict === "work" && !r.handled)) && (!scene || r.scene === scene || r.by === scene));
+  const waits = (r: any) => r.verdict === "work" || r.verdict === "note";
+  const list = reviews(GAME).filter((r) => (!open || (waits(r) && !r.handled)) && (!scene || r.scene === scene || r.by === scene));
   if (asJson) { console.log(JSON.stringify(list, null, 1)); return; }
-  if (!list.length) { console.log(open ? `Nothing is waiting: no entry is marked "needs work" without a later answer.` : "The user has not answered any feed entry yet (they do it in the pane)."); return; }
-  for (const r of list) console.log(`${r.verdict === "work" ? (r.handled ? "needs work (answered)" : "NEEDS WORK") : "looks right"}  ${r.scene ?? "no scene"}  entry ${r.entry}\n    entry: ${r.did.slice(0, 140)}${r.shot ? `  [${r.shot}]` : ""}${r.note ? `\n    the user wrote: ${r.note}` : ""}${r.verdict === "work" && !r.handled ? `\n    when you have dealt with it: kit note "<what you changed>" --shot <png> --answers ${r.entry}` : ""}`);
+  if (!list.length) { console.log(open ? `Nothing is waiting: no "needs work" or note on an entry is without a later answer.` : "The user has not answered any feed entry yet (they do it in the pane)."); return; }
+  const label = (r: any) => r.verdict === "right" ? "looks right" : `${r.verdict === "work" ? "needs work" : "note"}${r.handled ? " (answered)" : ""}`.replace(/^(needs work|note)$/, (m) => m.toUpperCase());
+  for (const r of list) console.log(`${label(r)}  ${r.scene ?? "no scene"}  entry ${r.entry}\n    entry: ${r.did.slice(0, 140)}${r.shot ? `  [${r.shot}]` : ""}${r.note ? `\n    the user wrote: ${r.note}` : ""}${waits(r) && !r.handled ? `\n    when you have dealt with it: kit note "<what you changed>" --shot <png> --answers ${r.entry}` : ""}`);
 }
 
 function decideCmd() {
@@ -424,7 +429,9 @@ async function setup() {
 /** kit patch: out/game.gba as a BPS patch against the user's own original game file, checked by applying it again. */
 function patchCmd() {
   needGame();
-  if (!opt("check")) { let priv = false; try { priv = JSON.parse(readFileSync(join(GAME, "settings.json"), "utf8")).private_scenes === true; } catch {} if (priv) die("this build has private scenes; set private_scenes to false and build again before making a patch"); }
+  if (!opt("check")) { let priv = false; try { priv = JSON.parse(readFileSync(join(GAME, "settings.json"), "utf8")).private_scenes === true; } catch {} if (priv) die("this build has private scenes; set private_scenes to false and build again before making a patch");
+    const hdr = join(GAME, "include/studio_settings.h"); // the setting may be off while the built game is still the private one
+    if (existsSync(hdr) && (/STUDIO_PRIVATE_SCENES\s+1/.test(readFileSync(hdr, "utf8")) || (existsSync(ROM) && statSync(ROM).mtimeMs < statSync(hdr).mtimeMs))) die("the built game was made while private_scenes was on (or before the setting last changed); run kit build, then kit patch"); }
   const check = opt("check"), given = opt("original"), file = resolve(GAME, opt("file") ?? "out/game.bps");
   const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`, sha1 = (b: Uint8Array) => new Bun.CryptoHasher("sha1").update(b).digest("hex");
   const read = (p: string, what: string) => { if (!existsSync(p) || !statSync(p).isFile()) die(`There is no ${what} at ${p}.`); return new Uint8Array(readFileSync(p)); };
@@ -582,6 +589,7 @@ switch (command) {
   case "music": needGame(); process.exit(musicCommand(GAME, args));
   case "find": needGame(); process.exit(await findCommand(GAME, args));
   case "dialogue": needGame(); process.exit(dialogueCommand(GAME, args));
+  case "agent-play": if (args[0] !== "help") needRom(); process.exit(await (await import("./agent-play/play")).agentPlayCommand(GAME, args));
   case "note": note(); break;
   case "reviews": reviewsCmd(); break;
   case "decide": decideCmd(); break;

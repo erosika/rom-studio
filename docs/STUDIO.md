@@ -65,7 +65,7 @@ phone; the driver's headless emulator has no link (it has no page).
 | `kit status` | Is the toolchain there, is there a game folder, what the decomp is (read from the tree), whether the base is applied, which scene are we on | Plain text, and what to do next if something is missing |
 | `kit setup --decomp <folder or git url> [--no-base]` | Bring your own decomp: toolchain check, a copy of the user's decomp into the game folder (their original is untouched), the calm and helper base only if the tree is the version it was made for (skipped, and said so, otherwise), starter `game.md`, first build. With no `--decomp` and no game folder it stops and explains what a decomp is. A git address is `https://`, `ssh://`, `git://` or `git@host:path`; anything else is taken as a folder. The script compiler it downloads is checked against a recorded sha256 before it is unpacked. The kit names and fetches no engine | Progress lines; safe to rerun |
 | `kit build` | Incremental build of the game folder. First regenerates every map script whose source (`.pory`) is newer than its generated file, and writes the settings header | OK plus seconds taken, or the first real error with file and line |
-| `kit play [--phone] [--stop]` | Starts the player, or reuses the one already running for this game folder. Reload the page after a build | A link for this computer; with `--phone`, also one for a phone on the same network |
+| `kit play [--phone] [--stop]` | Starts the player, or reuses the one already running for this game folder. After a build the open page offers the new one (or reload it) | A link for this computer; with `--phone`, also one for a phone on the same network |
 | `kit shot [--at group.number,x,y] [--name file.png] [--scale n] [steps]` | A picture from the real game, optionally after placing the player and running driver steps. Default file: `shots/s<current scene>-<next number>.png` | PNG path |
 | `kit press <buttons or steps>` | Drives the headless game: walk, talk, advance text. Every run starts from a fresh new game, so the whole route goes on one line | Where the player is now, plus a PNG |
 | `kit where [steps]` | Map, position, facing, any open text box | Plain text |
@@ -81,7 +81,7 @@ phone; the driver's headless emulator has no link (it has no page).
 | `kit dialogue --notes [--json]`, `kit dialogue --done "<text's name>" \| --done all` | The notes the user wrote on single texts in the pane's Dialogue tab (`dialogue-notes.jsonl` in the game folder: one row per save, the latest per text counts, an empty note takes it back). `--notes` prints each waiting note with its place, the text as it reads now, and the wording it was written against when that has changed since. `--done` marks a note dealt with, so it leaves the user's list. The tab also exports the same text as a file and copies it. |
 | `kit scenes [--json]` | The scenes in `game.md` with ticks and, for each, its feed entries (by their `scene`) and pictures (from those entries, else by file name: `s2-...`, `2-...`, `scene2-...`). `kit shot` names pictures `s<scene>-<number>.png` | Plain text or JSON |
 | `kit note "<sentence>" [--shot png] [--next "<sentence>"] [--asked "<words>"] [--scene "<name>"] [--by "<stream>"] [--before png] [--answers <entry time>] [--lore <id>]` | Appends to the feed. The scene defaults to the first unticked one in `game.md`. `--by` says who wrote it when several agents work at once; `--before` is a second picture shown beside `--shot`; `--answers` marks a "needs work" as dealt with; `--lore` also writes the sentence, dated, under Lineage in `lore/<id>.md` | The entry |
-| `kit reviews [--open] [--scene "<name>"] [--json]` | What the user answered to feed entries in the pane (`reviews.jsonl`): "looks right" or "needs work", with a note. `--open`: only "needs work" that no later entry answers | Plain text or JSON |
+| `kit reviews [--open] [--scene "<name>"] [--json]` | What the user answered to feed entries in the pane (`reviews.jsonl`): "looks right" or "needs work", with a note, or a note alone. `--open`: only "needs work" and notes that no later entry answers | Plain text or JSON |
 | `kit decide "<question>" [--options "a\|b"] [--recommend "<option>"] [--scene "<name>"] [--detail "<line>"]`, `kit decisions [--open] [--json]` | A question for the user, appended to `decisions.jsonl` and shown under Decisions in the pane; `decisions` prints the questions with the answers given | The id; plain text or JSON |
 | `kit settings [key] [value]`, `kit workers [--json]` | Read or set a key of `settings.json`; the helpers the user switched on and the default one. `kit status` also prints the chosen `image_model`. The kit makes no pictures: the agent's own tool reads the choice | Plain text or JSON |
 | `kit keep "<scene name>"` | Commits the scene, ticks it in `game.md` | The commit |
@@ -176,9 +176,10 @@ newest entry is under Now; Feed lists the ones before it.
 
 Answering the agent, and the rest:
 
-- **Answers on entries.** Each feed entry has "Looks right", "Needs work" and a note box; the
-  answer is appended to `reviews.jsonl` and shown on the entry, and a stream's tile counts its
-  open "needs work". The agent reads them with `kit reviews --open`.
+- **Answers on entries.** Each feed entry has "Looks right", "Needs work", a note box and "Send
+  note" (the note alone, for a pick or a remark that is neither verdict); the answer is appended to
+  `reviews.jsonl` and shown on the entry, and a stream's tile counts its open "needs work" and
+  notes. The agent reads them with `kit reviews --open`.
 - **Tiles by stream or by scene.** When entries carry `by`, a switch on the first screen groups
   the tiles by who is working or by scene. The Scenes tab is always the game's scene list.
 - **Before and after.** An entry with `before` shows the two pictures side by side (stacked on a phone).
@@ -229,6 +230,125 @@ Also:
 
 - **Saves** are kept by the browser. A build must never destroy a save without saying so.
 - Touch controls on phones.
+
+### The play page today
+
+`player/index.html` and `player/play.js`, with what the page says and decides kept apart in `player/checks.js` (tested
+in `player/checks.test.ts`) and the look into the emulator's memory in `player/ram.js`.
+
+- **Save and load.** Two buttons under the picture: **save here** makes a save point (the exact moment) and **load**
+  goes back to it. **saves and settings** opens the rest. There are two kinds of save and the panel says which lasts:
+  - *The game's own save* (START, then SAVE, inside the game) **survives a rebuilt game** and a closed page: choose
+    CONTINUE on the title screen.
+  - *A save point* fits only the build it was made on. After a rebuild the page says it is from an older build and
+    does not load it (loading it would show a broken game).
+
+  Both are kept in the browser, on that device, per game (the server gives each game folder a name that stays the same
+  across builds and gives away no path; the game file itself is not kept). Each can be exported to a file and imported
+  again, on this device or another: `save-<game>-<build>-<date>.sav`, `savepoint-<game>-<build>-<date>.ss1`. An import
+  is refused with a reason when the file is not a save of this kind, is empty, belongs to a game with another save
+  size, or is a save point whose name says another build. Importing the game's save restarts the game. In a private
+  window, where the browser keeps nothing, the page says so and that exporting is the way to keep a save.
+- **Typing on a phone.** When the game's own naming screen opens, a text line opens under the picture with the name the
+  game proposes; on a phone a tap on it brings up the phone's keyboard. **use it** writes the letters into the naming
+  screen in the game's own characters (letters the game's font lacks are dropped, the length is the game's own limit),
+  then presses START and A. **cancel** leaves the game's letter grid, and a **type** button brings the line back. This
+  needs the naming screen's place in memory, which the server reads from the built game's symbols and the engine's
+  source; when it cannot be read for sure nothing opens and the game's own letters are used. The agent entry of the
+  START menu uses the same line. On a phone held upright the picture stays at the top while the keyboard is up.
+- **Pace.** The panel shows, for the last two seconds: the game's speed against the original machine's (from the
+  emulator's own frame counter), the display's refresh rate, pictures a second that reached the screen, the cost of
+  each, the longest wait between two, how many regions the guard held, and with sound on how far the sound drifts a
+  minute. Three slow stretches in a row put one line above the controls saying which of these it was. A display faster
+  than 60 Hz is not fed the same picture twice. **low power** shows every other picture and asks less of the emulator
+  (frame skip, a larger sound buffer); switching it reloads the page and carries straight on from the same moment.
+- **Plain messages.** The page says in one sentence each: the browser has no WebAssembly; the address cannot run the
+  emulator (not this computer and not https); the browser gave no shared memory (an app's built-in browser); WebGL is
+  off; the phone link was opened without its key; the player on the computer was started before its last update and cannot
+  hand out the page (`kit play` starts such a player again by itself); there is no built game yet (it waits and starts by itself when one
+  appears); the computer does not answer; the connection was lost while playing (the game keeps running, saves stay in
+  the browser) and when it is back; a newer build is ready (with a button, so a rebuild never interrupts a game); the
+  emulator crashed or the browser took the graphics away (with a button to bring it back).
+- **Away and back.** When the tab is hidden or the phone is locked the game and its sound stop and held buttons are
+  let go; a save point of that moment is kept apart from the user's own. Coming back resumes. If the browser threw
+  the page away meanwhile, the reloaded page carries on from that moment and says so. The screen is asked to stay awake.
+- **The flash guard is always on.** There is no control for it and one place in the page draws on the visible canvas,
+  the guarded picture (`player/checks.test.ts` holds both). `?selftest` feeds a strobe through the same path and
+  measures the visible screen.
+- **Checks.** `bun test player` (the guard, the server's routes, the page's decisions); `CHROME=<a headless Chrome> bun
+  test player/page` opens the real page at a phone's size and a desk's. Page addresses for scripts: `?selftest`,
+  `?debug`, `?report`.
+
+## An agent plays the game
+
+`kit agent-play` lets an agent play the built game instead of a person. It is local and private: nothing is deployed, and
+the built game never leaves the game folder. `kit/agent-play/`; `kit agent-play help` prints all of this.
+
+**The loop.** The built game runs in the headless emulator from the moment it is switched on. Each step the agent is
+given one JSON object, and answers with one:
+
+| Given (`step`) | |
+|---|---|
+| `picture` | The screen now: `path` of a PNG file, `width`, `height` (enlarged by `--picture-scale`, default 2); with `--inline-picture` also `png_base64` |
+| `text` | The text in the message box now, `""` when none is open |
+| `where` | `{map: "group.number", x, y, facing, control}`; `control` is whether the player can move; `null` before the game has a player on a map |
+| `last` | The last eight steps: `{step, do, thought, result}` |
+| `notes` | The agent's own running notes, as it last wrote them. They are all it remembers between steps |
+| `step`, `steps_left`, `played` | This step's number over every run of the save, how many more this run allows, `{steps, seconds}` so far |
+| `how` | The rules of the answer, in words |
+
+| Answered | |
+|---|---|
+| `do` | Moves in the driver's step language, and only these of it: `press A,B,UP:30,A+B`, `walk UP:3,LEFT:2`, `wait 60`. At most 32 taps and squares, a hold of 120 frames, a wait of 600. A walk that is blocked ends the answer there |
+| `thought` | One line, shown on the watch page and kept in the log |
+| `notes` | Optional: replaces the running notes (2,000 characters at most) |
+| `stop` | Optional `true`: the agent ends the run |
+| `tokens` | Optional, from a command only: what this answer cost, counted against the cap |
+
+An answer that is not one (no JSON object, a move outside the list, past a limit) presses nothing, is told back to the agent
+in `last` as the result, and counts as a step. Five in a row end the run.
+
+**Two ways to be the agent.**
+
+- `--agent "<command>"`: the user's own agent as a command line. It is started once per step with the step as one line
+  on its standard input, and what it writes to standard output is the answer (a JSON object, alone or inside other words).
+  No shell reads the command line. The command is given a short plain environment (path, home, language, terminal) and
+  nothing else of ours; `--agent-env NAME,NAME` lets named variables through when the user's agent needs them.
+  `kit/agent-play/sample-agent.ts` is a player with no model that follows the shapes: it presses A through text, walks
+  until stopped, turns, and presses A at what stopped it.
+- `--provider anthropic|openai --model <id>`: a model behind an HTTP chat API that takes pictures. `openai` is the chat
+  completions shape that many services and local servers speak; `--base-url` points at one (https, or http on this
+  computer only). The key is read from a named environment variable (`--key-env`, by default the provider's usual
+  name), kept in memory, sent only in that request's header, taken out of this process's environment as soon as it is
+  read, and never written to a file, printed, logged or given to another program; what a service says back is quoted
+  only with the key removed. Each step is one request with no history but `last` and `notes`. *Not tried against a
+  live service*: the requests are checked in the tests against a stand-in.
+
+**Caps.** `--steps` (default 100) is this run's budget. `--cap-steps` (10,000) and `--cap-tokens` (200,000) are over every
+run of a save; they are checked before each step, so nothing is asked once a cap is reached, and the answer in
+progress may pass the token cap by one answer's worth (`--reply-tokens`, default 4,000, bounds its output).
+`--timeout` (120 s) bounds one answer. Ctrl-C ends the run after the step in hand.
+
+**The save.** `out/agent-play/<--name, default play>/` in the game folder: `state.ss` (the moment after the last finished
+step; the next run with the same name carries on from it), `run.json` (totals, notes, the last twenty steps),
+`steps.jsonl` (one row per step: time, picture file, text, where, the moves, the thought, the result, tokens, how
+long the agent took, the notes), `pictures/<step>.png`, and the save's own copy of the build it began with
+(`game.gba`, `game.sym`). The copy is there because a saved moment only fits the build that made it, and because a
+`kit build` while an agent plays would otherwise change the game under it. After a new build the save carries on in
+its old one and says so; `--fresh` starts the new build from the beginning and moves the old save aside (never deletes it).
+
+**Watching.** `--watch [port]` (default 8790) serves one page on 127.0.0.1 only: the live picture at the largest
+whole-number size that fits, unsmoothed; the agent's latest thought; the message box text; where the player is; how
+long it has played; the last twenty steps. The page is read-only: it answers GET and nothing else, has no request that
+presses a button, refuses a name that is not this computer's and a page on another site, and loads no script but its own.
+Every picture that leaves goes through the player's flash guard (`player/guard.js`), timed by the real clock, 25 times a
+second; the guard is built into the watcher and has no switch. While watched, the game runs at its own speed instead of
+as fast as it can. Nothing on the page moves on its own.
+
+Limits, known: the message text is the field message box only (a battle's text, a menu or a name screen is read from the
+picture); without the base's test hook the text may be an old one; the game's own battery save is not kept, only the
+emulator's moment; one process per step makes a command agent slow to start if its program is; the watch page ends
+with the run.
 
 ## Not in ROM Studio
 

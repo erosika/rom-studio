@@ -73,7 +73,7 @@ test("the pane is passed on only from this computer's own address, to the one co
 test("over the network every route that serves the game or reaches the agent needs the key", async () => {
   settings({});
   const host = "10.0.0.7:4871", req = (path: string, key?: string, method = "GET") => far(new Request(`https://${host}${path}`, { method, headers: { host, "content-type": "application/json", ...(key ? { "x-key": key } : {}) }, body: method === "POST" ? JSON.stringify({ text: "hi" }) : undefined }));
-  for (const [path, method] of [["/rom", "GET"], ["/hermes/info", "GET"], ["/hermes/ask", "POST"], ["/log", "POST"]] as const) {
+  for (const [path, method] of [["/rom", "GET"], ["/game", "GET"], ["/hermes/info", "GET"], ["/hermes/ask", "POST"], ["/log", "POST"]] as const) {
     expect(`${path} ${(await req(path, undefined, method)).status}`).toBe(`${path} 401`);
     expect(`${path} ${(await req(path, "k".repeat(31) + "x", method)).status}`).toBe(`${path} 401`);
     expect(`${path} ${(await req(path, KEY, method)).status}`).toBe(`${path} 200`);
@@ -90,4 +90,20 @@ test("the agent's command is the host's own unless the user names another; a chi
   settings({}); await ask(local, { text: "hello" });
   const seen = readFileSync(join(game, "env.txt"), "utf8");
   expect(seen).not.toContain("SECRET_PROVIDER_KEY"); expect(seen).toMatch(/^PATH=/m); expect(seen).toMatch(/^ROM_STUDIO_PANE_LOCAL=/m);
+});
+
+test("the page is told which game and build this is without being told where it lives, and where the naming screen keeps its text", async () => {
+  const get = async () => (await local(new Request("http://127.0.0.1:4870/game", { headers: { host: "127.0.0.1:4870" } }))).json();
+  const first = await get();
+  expect(first.id).toMatch(/^[0-9a-f]{12}$/); expect(JSON.stringify(first)).not.toContain(game); // a name for its saves that gives away no folder
+  expect(first.build).toBeString(); expect(first.naming).toBeNull(); expect(first.chars).toEqual({ A: 0xbb });
+  mkdirSync(join(game, "src"), { recursive: true }); writeFileSync(join(game, "src/naming_screen.c"), "struct NamingScreenData\n{\n    u8 tilemapBuffer1[0x800];\n    u8 textBuffer[16];\n    u8 state;\n};\n");
+  writeFileSync(join(game, "out/game.sym"), "02000000 00000004 B gHermesMailbox\n02031314 00000004 b sNamingScreen\n");
+  expect((await get()).naming).toBeNull(); // asked every few seconds: the game folder is read again only after a rebuild
+  await Bun.sleep(20); writeFileSync(join(game, "out/game.gba"), "a newer build of the game");
+  const second = await get();
+  expect(second.id).toBe(first.id); expect(second.build).not.toBe(first.build); expect(second.naming).toEqual({ at: 0x02031314, text: 0x800 });
+  rmSync(join(game, "out/game.gba")); expect((await get()).build).toBeNull(); // nothing built: the page waits and says so
+  for (const f of ["/ram.js", "/checks.js", "/play.js", "/guard.js"]) expect((await local(new Request(`http://127.0.0.1:4870${f}`, { headers: { host: "127.0.0.1:4870" } }))).status).toBe(200);
+  writeFileSync(join(game, "out/game.gba"), "not a real game");
 });

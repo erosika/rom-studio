@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>An agent is playing</title>
+<link rel="stylesheet" href="/watch.css">
+</head>
+<body>
+<main>
+  <section id="stage"><canvas id="screen" width="240" height="160" aria-label="The game's screen"></canvas></section>
+  <section id="side">
+    <p id="status">Connecting</p>
+    <h2>Thought</h2><p id="thought">-</p>
+    <h2>Message box</h2><p id="text">-</p>
+    <h2>Where</h2><p id="where">-</p>
+    <h2>Played</h2><p id="played">-</p>
+  </section>
+  <section id="steps"><h2>Last twenty steps</h2><ol id="last"></ol></section>
+</main>
+<script src="/watch.js"></script>
+</body>
+</html>

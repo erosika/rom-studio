@@ -85,7 +85,7 @@ game or engine; what a user may share is a patch, never a built game.
 11. Credentials: the plugin has none. Settings are non-secret `config_schema` keys read through `ctx.get_config` / `load_config_readonly` (`__init__.py`, `dashboard/plugin_api.py`); no `.env` or credential file is read.
 12. Approvals: no auto-approve or skip flag is passed anywhere in the tree (code, skills, examples); the one place such a word appears is `player/server.test.ts`, which checks that a session name shaped like a flag is refused; the in-game link runs `hermes chat` with no such flag (`player/server.ts`, `agentCommand()`); nothing waits on a prompt at load.
 13. Disclosures: above, in `README.md` ("What it starts, writes and sends") and in `SECURITY.md`.
-14. Compatibility: `requires_hermes: ">=0.21.6"` in both `plugin.yaml` and the entry. Every surface used exists at tag v0.21.6 (checked in the hermes-agent source); the plugin has been run on 0.23.1 only. `version` 0.1.0 matches `plugin.yaml`.
+14. Compatibility: `requires_hermes: ">=0.21.6"` in both `plugin.yaml` and the entry. Every surface used exists at tag v0.21.6 (checked in the hermes-agent source); the plugin has been run on 0.23.1 only. `version` 0.2.0 matches `plugin.yaml`.
 15. Not a skin or fork of a bundled plugin.
 16. One lineage: an original plugin, not derived from a listed one.
 17. No unscannable payloads: `git ls-files | xargs file` shows only text, JSON and PNG; no binaries, bytecode, archives or `node_modules`. The two things setup fetches come from their authors' own releases, are pinned by checksum, and are disclosed.

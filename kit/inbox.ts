@@ -13,17 +13,20 @@ const short = (s: string) => Bun.hash(s).toString(36).slice(0, 8);
 /** A name for one feed entry that survives two entries written in the same second. */
 export const entryId = (e: any) => short(`${e.t}|${e.scene ?? ""}|${e.did}`);
 export const feedRows = (game: string) => rows(join(game, "feed.jsonl")).filter((e) => typeof e?.did === "string");
-export type Review = { t: string; id: string; entry: string; scene?: string; verdict: "right" | "work"; note?: string };
+export type Review = { t: string; id: string; entry: string; scene?: string; verdict: "right" | "work" | "note"; note?: string };
+/** "note": the user only wrote something, without saying the entry is right or needs work; it waits for an answer like "work". */
+export const VERDICTS = ["right", "work", "note"];
 export function addReview(game: string, r: { id: string; entry: string; scene?: string; verdict: string; note?: string }) {
-  if (r.verdict !== "right" && r.verdict !== "work") throw new Error('the verdict is "right" or "work"');
+  if (!VERDICTS.includes(r.verdict)) throw new Error('the verdict is "right", "work" or "note"');
   const word = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  if (r.verdict === "note" && !word(r.note, 500)) throw new Error("the note is empty");
   if (!word(r.id, 64) || !word(r.entry, 64)) throw new Error("which entry? (id and entry time)");
   return add(join(game, "reviews.jsonl"), { t: now(), id: word(r.id, 64), entry: word(r.entry, 64), scene: word(r.scene, 200) || undefined, verdict: r.verdict, note: word(r.note, 500) || undefined });
 }
 /** The latest answer for each entry, in feed order, with the entry and whether a later entry says it dealt with it. */
 export function reviews(game: string) {
   const feed = feedRows(game), latest = new Map<string, Review>();
-  for (const r of rows(join(game, "reviews.jsonl"))) if (r?.id && (r.verdict === "right" || r.verdict === "work")) latest.set(r.id, r);
+  for (const r of rows(join(game, "reviews.jsonl"))) if (r?.id && VERDICTS.includes(r.verdict)) latest.set(r.id, r);
   return feed.flatMap((e, i) => {
     const id = entryId(e), r = latest.get(id); if (!r) return [];
     const by = feed.slice(i + 1).find((x) => x.answers === e.t || x.answers === id); // kit note --answers <entry time>

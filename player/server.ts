@@ -8,10 +8,12 @@
 // The agent link runs the host's own command line with the player's words on its standard input, never as an
 // argument: no flag that approves tools or skips a permission is passed, so the agent can do what the user's own
 // host setup lets a quiet one-shot chat do and no more; a question it would ask a person meets a closed input.
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { tableFrom } from "./game-text.js";
+import { namingTextOffset } from "./checks.js";
 import { childEnv } from "../kit/env";
 import { bodyUpTo, fromElsewhere, hostIsOwn, sameKey, saysJson, tooBig } from "../kit/web";
 
@@ -25,6 +27,8 @@ const FILES: Record<string, [string, string]> = {
   "/guard.js": [join(HERE, "guard.js"), "text/javascript"],
   "/game-text.js": [join(HERE, "game-text.js"), "text/javascript"],
   "/hermes-link.js": [join(HERE, "hermes-link.js"), "text/javascript"],
+  "/ram.js": [join(HERE, "ram.js"), "text/javascript"],
+  "/checks.js": [join(HERE, "checks.js"), "text/javascript"],
   "/mgba/mgba.js": [join(MGBA, "mgba.js"), "text/javascript"],
   "/mgba/mgba.wasm": [join(MGBA, "mgba.wasm"), "application/wasm"],
 };
@@ -91,6 +95,17 @@ function linkInfo() {
   return { mailbox, hook: symbol("gStudioMailbox"), on: mailbox !== null && !!charmap && s.hermes_link !== false, player: String(s.player_name ?? "YOU").toUpperCase(), agent: String(s.hermes_name ?? "HERMES"),
     table: tableFrom(charmap, read("src/fonts.c")) };
 }
+/** What the page needs to know about the game before and while it runs: a name for its saves that stays the same across
+ *  builds (and gives away no folder), which build is on disk now (null: none yet), and where the game's own naming screen keeps its text. */
+export function gameInfo() {
+  let build: string | null = null; try { const st = statSync(ROM); build = `${Math.round(st.mtimeMs).toString(36)}-${st.size.toString(36)}`; } catch {}
+  if (known?.build !== build) { // read again only when the game was rebuilt: the page asks every few seconds
+    const at = symbol("sNamingScreen"), text = at === null ? null : namingTextOffset(read("src/naming_screen.c"));
+    known = { build, rest: { id: createHash("sha256").update(GAME).digest("hex").slice(0, 12), naming: at !== null && text !== null ? { at, text } : null, chars: tableFrom(read("charmap.txt")).chars } };
+  }
+  return { build, ...known.rest };
+}
+let known: { build: string | null; rest: { id: string; naming: { at: number; text: number } | null; chars: Record<string, number> } } | null = null;
 
 const PANE = process.env.ROM_STUDIO_PANE_LOCAL ?? "http://127.0.0.1:8778"; // where the pane listens on this computer
 const DROP = /^(host|origin|referer|cookie|connection|content-length|sec-fetch-.*)$/i; // checked here; the pane is asked as this computer
@@ -130,6 +145,7 @@ export function handler(key: string | null, host: string | null = null) {
       try { const t0 = Date.now(), reply = await ask(text.slice(0, 2000), at); console.log(`agent link: answered in ${Math.round((Date.now() - t0) / 1000)} s`); return Response.json({ reply }, { headers: ISOLATED }); }
       finally { busy = false; }
     }
+    if (path === "/game" && req.method === "GET") return keyed() ? Response.json(gameInfo(), { headers: ISOLATED }) : no("open the full link with its key once", 401);
     if (path === "/rom" && req.method === "GET") {
       if (!keyed()) return no("open the full link with its key once", 401);
       if (!existsSync(ROM)) return no("no ROM built yet", 404);

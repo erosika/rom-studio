@@ -41,7 +41,7 @@ input::placeholder { color: var(--quiet); opacity: 1; }
 .entry.first > .review { grid-area: review; align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 22px 20px; background: var(--well); border: 1px solid var(--line); border-radius: var(--r); }
 .review h3 { order: -3; margin: 0; font-size: 21px; font-weight: 500; }
 .review > .quiet { order: -2; margin: 0; }
-.review input { order: -1; min-height: 44px; }
+.review input, .review .send-note { order: -1; min-height: 44px; }
 .review .pair { display: grid; gap: 7px; }
 .review .pair button { display: flex; align-items: center; gap: 10px; min-height: 44px; text-align: left; }
 .console-key { display: inline-grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 600 12px/1 ui-monospace, monospace; }
