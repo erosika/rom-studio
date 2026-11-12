@@ -6,16 +6,16 @@ import { join } from "node:path";
 
 const game = mkdtempSync(join(tmpdir(), "player-test-")), agent = join(game, "agent.sh"), KEY = "k".repeat(32), WORDS = "is the harbour open; $(touch pwned) `id` --yolo";
 let local: (req: Request) => Promise<Response>, far: (req: Request) => Promise<Response>, pane: ReturnType<typeof Bun.serve>;
-const settings = (o: object) => writeFileSync(join(game, "settings.json"), JSON.stringify({ hermes_command: agent, ...o }));
+const settings = (o: object) => writeFileSync(join(game, "settings.json"), JSON.stringify(o));
 const ask = (h: typeof local, body: unknown, headers: Record<string, string> = {}, host = "127.0.0.1:4870") =>
   h(new Request(`http://${host}/hermes/ask`, { method: "POST", headers: { host, "content-type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) }));
 
 beforeAll(async () => {
   mkdirSync(join(game, "out")); writeFileSync(join(game, "out/game.gba"), "not a real game"); writeFileSync(join(game, "out/game.sym"), "02000000 00000004 B gHermesMailbox\n"); writeFileSync(join(game, "charmap.txt"), "'A' = BB\n");
   // stands in for the host's command line: keeps what it was started with and what it was told, then answers
-  writeFileSync(agent, `#!/bin/sh\nprintf '%s\\n' "$@" > "${game}/argv.txt"\ncat > "${game}/stdin.txt"\n[ -f "${game}/slow" ] && sleep 30\necho "It is open."\n`); chmodSync(agent, 0o755);
+  writeFileSync(agent, `#!/bin/sh\nprintf '%s\\n' "$@" > "${game}/argv.txt"\ncat > "${game}/stdin.txt"\nenv > "${game}/env.txt"\n[ -f "${game}/slow" ] && sleep 30\necho "It is open."\n`); chmodSync(agent, 0o755);
   pane = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: (req) => Response.json({ path: new URL(req.url).pathname, host: req.headers.get("host"), origin: req.headers.get("origin") }) });
-  Object.assign(process.env, { ROM: join(game, "out/game.gba"), GAME: game, ROM_STUDIO_PANE_LOCAL: `http://127.0.0.1:${pane.port}` });
+  Object.assign(process.env, { ROM: join(game, "out/game.gba"), GAME: game, ROM_STUDIO_PANE_LOCAL: `http://127.0.0.1:${pane.port}`, ROM_STUDIO_HERMES_COMMAND: agent, SECRET_PROVIDER_KEY: "sk-not-for-children" });
   const { handler } = await import("./server"); local = handler(null); far = handler(KEY, "10.0.0.7");
 });
 afterAll(() => { pane.stop(true); rmSync(game, { recursive: true, force: true }); });
@@ -38,8 +38,9 @@ test("a command that does not answer in time is stopped, the game is told so, an
   expect(await (await first).json()).toEqual({ reply: "No signal. Try me again." }); expect(Date.now() - t0).toBeLessThan(4000);
   rmSync(join(game, "slow"));
   expect(await (await ask(local, { text: "and now" })).json()).toEqual({ reply: "It is open." });
-  settings({ hermes_command: join(game, "no-such-command") });
+  process.env.ROM_STUDIO_HERMES_COMMAND = join(game, "no-such-command");
   expect(await (await ask(local, { text: "hello" })).json()).toEqual({ reply: "No signal. Try me again." });
+  process.env.ROM_STUDIO_HERMES_COMMAND = agent;
   settings({ hermes_link: false });
   expect(await (await ask(local, { text: "hello" })).json()).toEqual({ reply: "The link is switched off." });
 }, 15_000);
@@ -79,4 +80,14 @@ test("over the network every route that serves the game or reaches the agent nee
   }
   expect((await req("/", undefined)).status).toBe(200); // the page itself, which then asks for the rest with the key
   expect((await far(new Request("https://elsewhere.example/rom", { headers: { host: "elsewhere.example", "x-key": KEY } }))).status).toBe(403);
+});
+
+test("the agent's command is the host's own unless the user names another; a child never sees the host's keys", async () => {
+  const { hermesCommand } = await import("./server");
+  expect(hermesCommand({ hermes_command: "/tmp/evil --flag" }, "")).toEqual(["hermes"]); // settings.json can be written by a tool: any other program is refused
+  expect(hermesCommand({ hermes_command: "/opt/bin/hermes --profile game" }, "")).toEqual(["/opt/bin/hermes", "--profile", "game"]);
+  expect(hermesCommand({ hermes_command: "/tmp/evil" }, "/usr/local/bin/mine")).toEqual(["/usr/local/bin/mine"]); // the user's own word wins
+  settings({}); await ask(local, { text: "hello" });
+  const seen = readFileSync(join(game, "env.txt"), "utf8");
+  expect(seen).not.toContain("SECRET_PROVIDER_KEY"); expect(seen).toMatch(/^PATH=/m); expect(seen).toMatch(/^ROM_STUDIO_PANE_LOCAL=/m);
 });

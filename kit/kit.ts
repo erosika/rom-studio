@@ -11,6 +11,7 @@ import { answer, ask, decisions, reviews, setSettings, settings, workers } from 
 import { MUSIC_HELP, musicCommand } from "./music";
 import { FIND_HELP, findCommand } from "./find";
 import { DIALOGUE_HELP, dialogueCommand } from "./dialogue";
+import { childEnv } from "./env";
 
 const BASE_FOR = { file: "include/constants/expansion.h", blob: "7d775c0c920e2fc2c41019c8e5a4d7edd5eb80a1", says: "the expanded engine 1.17.2" }; // the one version kit/base was made for
 const SCRIPT_TOOL_URL = "https://github.com/huderlem/poryscript/releases/download/3.6.1/poryscript-linux.zip";
@@ -73,7 +74,7 @@ Steps (shot, press, where): every run starts from a fresh new game, so put the w
   shot <png>   where   save <file>   load <file>     (a picture or the position mid-route; save a moment and carry on from it in a later run)
 Settings: settings.json in the game folder holds the player's name (7 letters at most) and look (girl or boy).
   Talk to your agent from inside the game (the base's START menu entry, in the player): hermes_link (false switches it off), hermes_command
-  (default "hermes"), hermes_session (the conversation's name), hermes_preface (what the agent is told first), hermes_timeout (seconds, default 60).
+  (default "hermes"; another program only through ROM_STUDIO_HERMES_COMMAND, set by you), hermes_session (the conversation's name), hermes_preface (what the agent is told first), hermes_timeout (seconds, default 60).
   "original_game": the path of your own copy of the original game file, which kit patch makes the patch from (or --original once).
   "image_model": the picture model the user chose (the kit makes no pictures itself: your own tool reads this). "image_models": the choices.
   "workers": the helpers you may hand work to ({name, how, model, note, enabled}); "default_worker": the one to use unless told otherwise.
@@ -97,7 +98,7 @@ const OUT = join(GAME, "out"), ROM = join(OUT, "game.gba"), GAME_MD = join(GAME,
 const command = args.shift() ?? "help";
 
 function run(cmd: string[], o: { cwd?: string; show?: boolean; env?: Record<string, string | undefined> } = {}) {
-  const r = Bun.spawnSync(cmd, { cwd: o.cwd, env: { ...env, ...o.env }, stdout: o.show ? "inherit" : "pipe", stderr: o.show ? "inherit" : "pipe" });
+  const r = Bun.spawnSync(cmd, { cwd: o.cwd, env: childEnv(o.env), stdout: o.show ? "inherit" : "pipe", stderr: o.show ? "inherit" : "pipe" });
   return { ok: r.exitCode === 0, out: o.show ? "" : (r.stdout.toString() + r.stderr.toString()).trim() };
 }
 const git = (...a: string[]) => run(["git", "-C", GAME, ...a]);
@@ -206,7 +207,7 @@ function writeSettingsHeader() { // settings.json -> include/studio_settings.h, 
 async function build(): Promise<boolean> {
   needGame(); writeSettingsHeader();
   const start = Date.now(), log = join(OUT, "build.log");
-  const p = Bun.spawn(["bash", join(KIT, "build.sh"), GAME], { env: { ...env, SCRIPT_TOOL: scriptTool() ?? "" }, stdout: "inherit", stderr: "inherit" });
+  const p = Bun.spawn(["bash", join(KIT, "build.sh"), GAME], { env: childEnv({ SCRIPT_TOOL: scriptTool() ?? "" }), stdout: "inherit", stderr: "inherit" });
   const tick = setInterval(() => { // progress for long builds
     let n = 0; try { n = readFileSync(log, "utf8").split("\n").length; } catch {}
     console.log(`  building, ${Math.round((Date.now() - start) / 1000)} s so far (${n} steps done)`);
@@ -217,7 +218,7 @@ async function build(): Promise<boolean> {
 
 async function drive(steps: string[]): Promise<boolean> {
   needRom(); mkdirSync(join(GAME, "shots"), { recursive: true });
-  return (await Bun.spawn([process.execPath, join(KIT, "drive.ts"), ...steps], { cwd: GAME, env: { ...env, GAME_DIR: GAME, ROM }, stdout: "inherit", stderr: "inherit" }).exited) === 0;
+  return (await Bun.spawn([process.execPath, join(KIT, "drive.ts"), ...steps], { cwd: GAME, env: childEnv({ GAME_DIR: GAME, ROM }), stdout: "inherit", stderr: "inherit" }).exited) === 0;
 }
 function nextShot(): string {
   const name = opt("name"); if (name) return name.includes("/") ? name : `shots/${name}`;
@@ -241,7 +242,7 @@ async function play() {
   if (r) process.kill(r.pid);
   if (!existsSync(join(REPO, "player/node_modules"))) die("The player's files are missing. Run: kit setup");
   writeFileSync(log, "", { mode: 0o600 }); chmodSync(log, 0o600); // it holds the phone link with its key
-  const p = Bun.spawn(["setsid", process.execPath, join(REPO, "player/server.ts"), ...(phone ? ["--lan"] : [])], { env: { ...env, ROM }, stdin: "ignore", stdout: Bun.file(log), stderr: Bun.file(log) });
+  const p = Bun.spawn(["setsid", process.execPath, join(REPO, "player/server.ts"), ...(phone ? ["--lan"] : [])], { env: childEnv({ ROM }), stdin: "ignore", stdout: Bun.file(log), stderr: Bun.file(log) });
   p.unref();
   let lines: string[] = [];
   for (let i = 0; i < 50 && !(lines.some((l) => l.startsWith("play on this")) && (!phone || lines.length > 1)); i++) { await Bun.sleep(100); lines = readFileSync(log, "utf8").split("\n").filter(Boolean); }

@@ -4,6 +4,7 @@
 // The game folder comes from ROM_STUDIO_GAME in this server's environment (else the kit's default).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { childEnv } from "./env";
 
 const KIT = join(import.meta.dir, "kit.ts");
 type Props = Record<string, { type: string; description: string }>;
@@ -80,7 +81,7 @@ async function call(name: string, a: Record<string, any>) {
   if (!t) return { isError: true, content: [{ type: "text", text: `no tool "${name}". Tools: ${Object.keys(TOOLS).join(", ")}` }] };
   const missing = t[2].filter((k) => a[k] === undefined || a[k] === "");
   if (missing.length) return { isError: true, content: [{ type: "text", text: `${name} needs: ${missing.join(", ")}` }] };
-  const p = Bun.spawn([process.execPath, KIT, name, ...t[3](a)], { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn([process.execPath, KIT, name, ...t[3](a)], { env: childEnv(), stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   const content: any[] = [{ type: "text", text: (out + err).trim() || (code === 0 ? "done" : `failed with code ${code}`) }];
   const png = /^(?:shot|map picture): (\S+\.png)/m.exec(out)?.[1];

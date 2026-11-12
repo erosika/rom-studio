@@ -110,6 +110,10 @@ that may be pinned (the numbers are the catalog's admission rules):
   `hermes_cli.config`, `plugins.plugin_storage`); never rebind anything in Hermes.
 - **No credential or `.env` reads (11).** Settings come from `ctx.get_config` and
   `load_config_readonly()`, with `os.environ` as the only fallback. There are no secrets.
+- **Children never inherit the environment.** Every program started (Python or TypeScript) is
+  given `childEnv()` from `kit/env.ts` (in `__init__.py`: `_child_env()`), a short list by name;
+  `kit/build.sh` clears its own before `make`. A new spawn without it fails review: the host's
+  environment holds provider keys and a decomp's Makefile is other people's code.
 - **Approvals respected (12).** No flag that skips or auto-approves anything, anywhere: not in
   code, not in a skill, not in an example of a helper's command.
 - **Disclosures current (13).** A new process, port, download, shell command or place written to

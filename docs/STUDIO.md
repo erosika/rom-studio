@@ -45,7 +45,8 @@ opens one line under the screen when the player chooses the entry, shows the pla
 (`player/game-text.js`: wrapped to the box by the game's glyph widths, long answers split between boxes; numbered lines in
 an answer become a menu). The server runs the host's own command line, one named conversation, with a time limit:
 `<hermes_command> chat --query-file - -Q -c <hermes_session> --create-if-missing --source game`. Settings: `hermes_link`
-(false switches it off; on by default when the game has the mailbox), `hermes_command` (default `hermes`),
+(false switches it off; on by default when the game has the mailbox), `hermes_command` (default `hermes`; a value in `settings.json` counts only while it is still `hermes` or a path to it, and
+any other program has to be named by the user in the environment variable `ROM_STUDIO_HERMES_COMMAND`),
 `hermes_session` (default `rom-studio-game`), `hermes_preface` (what the agent is told before the player's words; the default says
 only that the words come from inside the user's game and how short to be: a game writes its own, in its tablet's voice),
 `hermes_timeout` (seconds, default 60, 240 at most; after that the command is stopped and the game shows "No signal. Try me

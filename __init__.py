@@ -12,6 +12,7 @@ environment only: ROM_STUDIO_GAME, ROM_STUDIO_PANE_URL, ROM_STUDIO_PANE_PORT.
 """
 import atexit
 import os
+import re
 import subprocess
 import threading
 import urllib.request
@@ -54,6 +55,15 @@ def _data_dir():
         return None  # outside a host: the page's default
 
 
+_KEEP = re.compile(r"^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LANGUAGE|LC_[A-Z_]+|TZ|TERM|TMPDIR|XDG_RUNTIME_DIR|HERMES_HOME|ARM_GCC|MGBA_PREFIX|SCRIPT_TOOL|JOBS|GAME_DIR|GAME|ROM|SYM|PORT|REDRAW_BASE|ROM_STUDIO_[A-Z0-9_]+)$")
+
+
+def _child_env():
+    """What the page (and everything it starts) may see: a short list by name, never this process's own environment,
+    which holds the agent's provider keys. The same list as kit/env.ts."""
+    return {k: v for k, v in os.environ.items() if _KEEP.match(k)}
+
+
 def _start_page():
     """Our own page on this computer only (127.0.0.1): start it unless one already answers."""
     global _page
@@ -65,7 +75,7 @@ def _start_page():
         data = _data_dir()
         cmd = ["bun", str(SERVER), "--game", GAME, "--port", str(PORT), "--bind", "127.0.0.1", *(["--data", data] if data else [])]
         try:
-            _page = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _page = subprocess.Popen(cmd, env=_child_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError:
             pass  # bun is not installed: the pane says it cannot reach the page
 

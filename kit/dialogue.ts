@@ -3,6 +3,7 @@
 import { appendFileSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { walk } from "./find";
+import { childEnv } from "./env";
 
 export type State = "new" | "changed" | "same"; // against the day the game folder was set up
 export type Text = { label: string; boxes: string[] };
@@ -49,7 +50,7 @@ const placeOf = (file: string) => file.startsWith("data/maps/") ? basename(dirna
 type Since = { added: Set<string>; before: Map<string, Map<string, string>> };
 /** What the scripts held when the game folder was set up: which files are new since, and each older file's texts then. Null when that cannot be told. */
 export function sinceSetup(game: string): Since | null {
-  const env = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+  const env = childEnv({ GIT_OPTIONAL_LOCKS: "0" });
   const git = (...a: string[]) => { const r = Bun.spawnSync(["git", "-C", game, ...a], { stderr: "ignore", env }); return r.exitCode === 0 ? r.stdout.toString().trim() : null; };
   if (!existsSync(join(game, ".git"))) return null;
   const start = git("rev-parse", "-q", "--verify", "kit-start^{commit}") || git("log", "--grep=^base:", "--format=%H")?.split("\n").pop() || git("rev-list", "--max-parents=0", "HEAD")?.split("\n")[0];

@@ -12,6 +12,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileS
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { tableFrom } from "./game-text.js";
+import { childEnv } from "../kit/env";
 import { bodyUpTo, fromElsewhere, hostIsOwn, sameKey, saysJson, tooBig } from "../kit/web";
 
 const HERE = import.meta.dir;
@@ -56,16 +57,24 @@ function place(at: any): string {
 }
 let busy = false;
 const NO_SIGNAL = "No signal. Try me again.", REPLY_MAX = 20_000;
+/** The host's command. settings.json can be written by `kit settings`, so a command there counts only when it is still
+ *  the host's own (`hermes`, or a path to it); any other program has to be named by the user, in ROM_STUDIO_HERMES_COMMAND. */
+export function hermesCommand(s: Record<string, any>, own = process.env.ROM_STUDIO_HERMES_COMMAND): string[] {
+  const words = (v: unknown) => String(v ?? "").split(/\s+/).filter(Boolean);
+  if (words(own).length) return words(own);
+  const set = words(s.hermes_command);
+  return set.length && /(^|\/)hermes$/.test(set[0]) ? set : ["hermes"];
+}
 /** The command line the words are handed to: the host's own, one named conversation, quiet, the words on standard input. */
 export function agentCommand(s: Record<string, any>): string[] {
-  const cmd = String(s.hermes_command ?? "hermes").split(/\s+/).filter(Boolean), session = /^[\w.][\w.-]{0,63}$/.test(String(s.hermes_session ?? "")) ? String(s.hermes_session) : "rom-studio-game"; // never a word that reads as a flag; the default is this plugin's own, not a name another tool may use
+  const cmd = hermesCommand(s), session = /^[\w.][\w.-]{0,63}$/.test(String(s.hermes_session ?? "")) ? String(s.hermes_session) : "rom-studio-game"; // never a word that reads as a flag; the default is this plugin's own, not a name another tool may use
   return [...cmd, "chat", "--query-file", "-", "-Q", "-c", session, "--create-if-missing", "--source", "game"];
 }
 export async function ask(text: string, at: unknown): Promise<string> {
   const s = settings(), secs = Math.min(Math.max(Number(s.hermes_timeout) || 60, 1), 240); // the connection itself is given up on after 255 s
   const body = [typeof s.hermes_preface === "string" ? s.hermes_preface : PREFACE, place(at), "", text].filter((l, i) => l || i === 2).join("\n");
   let proc: ReturnType<typeof Bun.spawn>;
-  try { proc = Bun.spawn(agentCommand(s), { cwd: homedir(), stdin: new Blob([body]), stdout: "pipe", stderr: "pipe" }); }
+  try { proc = Bun.spawn(agentCommand(s), { cwd: homedir(), env: childEnv(), stdin: new Blob([body]), stdout: "pipe", stderr: "pipe" }); }
   catch { return NO_SIGNAL; }
   let timer: ReturnType<typeof setTimeout>, hard: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<"late">((done) => { timer = setTimeout(() => { proc.kill(); hard = setTimeout(() => proc.kill("SIGKILL"), 2000); done("late"); }, secs * 1000); });
@@ -148,9 +157,9 @@ if (process.argv.includes("--lan")) {
   if (!ips.length) { console.error("no home-network address found (a private IPv4 address); not opening a phone address"); }
   else {
     mkdirSync(dir, { recursive: true, mode: 0o700 }); chmodSync(dir, 0o700); // the certificate's key and the link's key: the owner's eyes only
-    const covers = existsSync(crt) ? Bun.spawnSync(["openssl", "x509", "-in", crt, "-noout", "-ext", "subjectAltName"]).stdout.toString() : "";
+    const covers = existsSync(crt) ? Bun.spawnSync(["openssl", "x509", "-in", crt, "-noout", "-ext", "subjectAltName"], { env: childEnv() }).stdout.toString() : "";
     if (!ips.every((i) => covers.includes(`IP Address:${i}`))) { // a new address since the certificate was made
-      const r = Bun.spawnSync(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "365", "-subj", "/CN=player", "-addext", `subjectAltName=${ips.map((i) => `IP:${i}`).join(",")}`, "-keyout", pem, "-out", crt]);
+      const r = Bun.spawnSync(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "365", "-subj", "/CN=player", "-addext", `subjectAltName=${ips.map((i) => `IP:${i}`).join(",")}`, "-keyout", pem, "-out", crt], { env: childEnv() });
       if (r.exitCode !== 0) { console.error(`could not make a certificate (is openssl installed?): ${r.stderr.toString().slice(-200)}`); process.exit(1); }
     }
     if (!existsSync(keyFile)) writeFileSync(keyFile, crypto.randomUUID().replaceAll("-", ""), { mode: 0o600 });

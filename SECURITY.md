@@ -27,7 +27,9 @@ owners who put one trusted address in front of both.
    the pane and the player need no key.
 2. Other devices are not trusted without the key: the pane's `/k/<key>/` link, the player's phone
    link. Web pages on other sites are never trusted, with or without a key in hand.
-3. The decomp is code you chose to trust: building it runs its build scripts as you.
+3. The decomp is code you chose to trust: building it runs its build scripts as you. They run with a
+   short list of variables by name (`kit/env.ts`), never the agent's environment, so they cannot
+   read its provider keys from there; they can still read your files.
 4. The in-game agent link (only in a game built with the optional base, which this repository
    does not carry) runs your own `hermes` command with your agent's normal tools and approval
    rules. ROM Studio never passes a flag that skips approvals. `"hermes_link": false` turns it off.

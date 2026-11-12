@@ -2,6 +2,15 @@
 # kit/build.sh [game-dir]: incremental build, one at a time. Regenerates every map script whose source is
 # newer than its generated file, runs make, prints OK + seconds or the first real error with file and line.
 set -uo pipefail
+# the game folder's Makefile is other people's code: it gets a short list of variables by name, never the caller's
+# environment (an agent's holds its provider keys). The same list as kit/env.ts.
+if [ -z "${ROM_STUDIO_CLEAN_ENV:-}" ]; then
+  keep=(ROM_STUDIO_CLEAN_ENV=1 "PATH=$PATH" "HOME=${HOME:-}")
+  for v in USER LOGNAME SHELL LANG LANGUAGE LC_ALL LC_CTYPE LC_MESSAGES TZ TERM TMPDIR ARM_GCC MGBA_PREFIX SCRIPT_TOOL JOBS GAME_DIR ROM ROM_STUDIO_GAME; do
+    [ -n "${!v+x}" ] && keep+=("$v=${!v}")
+  done
+  exec env -i "${keep[@]}" bash "$0" "$@"
+fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 SRC="${1:-${ROM_STUDIO_GAME:-${GAME_DIR:-$ROOT/../rom-studio-game}}}"; OUT="$SRC/out"; LOG="$OUT/build.log"
 GCC="${ARM_GCC:-$HOME/.local/opt/arm-gnu-14.2}"

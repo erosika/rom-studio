@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { encodePng } from "./png";
+import { childEnv } from "./env";
 
 const KIT = import.meta.dir;
 const GAME = resolve(process.env.GAME_DIR ?? join(KIT, "../../rom-studio-game"));
@@ -24,7 +25,7 @@ if (!existsSync(BIN)) die(`emulator not built. Run: bash ${KIT}/emu/build.sh`);
 if (!existsSync(ROM) || !existsSync(SYM)) die(`no ROM at ${ROM} (or no .sym beside it). Run: ${KIT}/build.sh`);
 
 // ---- emulator: one line in, one line out ----
-const proc = Bun.spawn([BIN, ROM], { stdin: "pipe", stdout: "pipe", stderr: "ignore" });
+const proc = Bun.spawn([BIN, ROM], { env: childEnv(), stdin: "pipe", stdout: "pipe", stderr: "ignore" });
 const reader = proc.stdout.getReader();
 const dec = new TextDecoder();
 let buf = "";

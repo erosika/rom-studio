@@ -159,7 +159,14 @@ also lists and serves the audio files in those folders), and the two network var
 Game settings (`settings.json` in the game folder; `kit settings [key] [value]`): `player_name`,
 `player_look`, `original_game`, `private_scenes`, `image_model`, `workers`, `default_worker`, and
 the in-game link's `hermes_link`, `hermes_command`, `hermes_session`, `hermes_preface`,
-`hermes_timeout`. `docs/STUDIO.md` describes each.
+`hermes_timeout`. `docs/STUDIO.md` describes each. `hermes_command` counts only while it is still
+`hermes` (or a path to it); any other program has to be named by you, in `ROM_STUDIO_HERMES_COMMAND`.
+
+Every program the plugin and the kit start (the pane, the build and your decomp's Makefile, the
+emulator, the player, git, the in-game link's `hermes`) gets a short list of variables by name:
+`PATH`, `HOME`, the language and time-zone ones, `TMPDIR`, and the kit's own (`ROM_STUDIO_*`,
+`ARM_GCC`, `MGBA_PREFIX`, `SCRIPT_TOOL`, `JOBS`, `GAME_DIR`, `ROM`). None of them is handed the
+agent's environment, so no provider key reaches a build script (`kit/env.ts`).
 
 ## What it starts, writes and sends
 

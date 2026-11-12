@@ -4,6 +4,7 @@ import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSyn
 import { join } from "node:path";
 import { fileLines, findText, walk } from "../kit/find";
 import { bodyUpTo, saysJson, tooBig } from "../kit/web";
+import { childEnv } from "../kit/env";
 
 const HERE = import.meta.dir, KIT = join(HERE, "../kit/kit.ts");
 export const ARCHIVE_MAX = 600_000_000;
@@ -50,7 +51,7 @@ print(n)
 /** Unpacks a .zip or .tar.gz into a fresh folder; throws the plain reason when it holds a path that climbs out. */
 export async function unpack(archive: string, dest: string): Promise<number> {
   mkdirSync(dest, { recursive: true });
-  const p = Bun.spawn(["python3", "-I", "-c", UNPACK, archive, dest, String(UNPACKED_MAX), String(FILES_MAX)], { stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn(["python3", "-I", "-c", UNPACK, archive, dest, String(UNPACKED_MAX), String(FILES_MAX)], { env: childEnv(), stdout: "pipe", stderr: "pipe" });
   let late = false; const timer = setTimeout(() => { late = true; p.kill("SIGKILL"); }, UNPACK_MS);
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]); clearTimeout(timer);
   if (code !== 0) { rmSync(dest, { recursive: true, force: true }); throw new Error(late ? "Unpacking took more than 15 minutes and was stopped. Unpack it yourself and give the folder instead." : err.trim().split("\n").pop() || "The archive could not be unpacked."); }
@@ -86,7 +87,7 @@ export function startSetup(game: string, data: string, from: string, unpacked?: 
   mkdirSync(data, { recursive: true }); const log = logFile(data);
   writeFileSync(log, `Setting up from ${from}\n`);
   const fd = openSync(log, "a"); // one appending handle for both streams, so the lines stay in order
-  const proc = Bun.spawn([process.execPath, KIT, "setup", "--decomp", from, "--game", game], { stdin: "ignore", stdout: fd, stderr: fd, detached: true } as any);
+  const proc = Bun.spawn([process.execPath, KIT, "setup", "--decomp", from, "--game", game], { env: childEnv(), stdin: "ignore", stdout: fd, stderr: fd, detached: true } as any);
   closeSync(fd); writeFileSync(pidFile(data), String(proc.pid)); job = { proc, from }; proc.unref();
   proc.exited.then((code) => {
     job = null; rmSync(pidFile(data), { force: true }); if (unpacked) rmSync(unpacked, { recursive: true, force: true }); // the game folder has its own copy by now
@@ -102,12 +103,12 @@ function progress(data: string) {
 function info(game: string, data: string) {
   const exists = existsSync(game), game_ = exists && isGame(game), folders = new Map<string, number>();
   if (game_) {
-    const ls = existsSync(join(game, ".git")) ? Bun.spawnSync(["git", "-C", game, "ls-files"], { env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } }).stdout.toString().split("\n").filter(Boolean) : [...walk(game)];
+    const ls = existsSync(join(game, ".git")) ? Bun.spawnSync(["git", "-C", game, "ls-files"], { env: childEnv({ GIT_OPTIONAL_LOCKS: "0" }) }).stdout.toString().split("\n").filter(Boolean) : [...walk(game)];
     for (const f of ls) { const top = f.includes("/") ? f.slice(0, f.indexOf("/")) : ""; folders.set(top, (folders.get(top) ?? 0) + 1); }
   }
   let says: Record<string, string> = {};
   if (game_) try {
-    const out = Bun.spawnSync([process.execPath, KIT, "status", "--game", game], { stderr: "ignore", timeout: 20_000 }).stdout.toString();
+    const out = Bun.spawnSync([process.execPath, KIT, "status", "--game", game], { env: childEnv(), stderr: "ignore", timeout: 20_000 }).stdout.toString();
     says = Object.fromEntries(["decomp", "base", "last build"].map((k) => [k, new RegExp(`^${k}: (.*)$`, "m").exec(out)?.[1] ?? ""]).filter(([, v]) => v));
   } catch {}
   return { game, exists, isGame: game_, holdsFiles: holds(game), says, files: folders.get("") ?? 0, refusal: refusal(game, data),

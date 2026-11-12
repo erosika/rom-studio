@@ -4,6 +4,12 @@
 
 The first version packaged for the Hermes plugin catalog.
 
+- **After review.** Every program the plugin and the kit start now gets a short list of variables
+  by name (`kit/env.ts`), never the host's environment, so no provider key reaches the pane, the
+  build, a decomp's Makefile or the emulator; `kit/build.sh` clears its own environment before
+  `make`. The in-game link runs `hermes` only: a `hermes_command` in `settings.json` that names
+  another program is ignored unless the user names it in `ROM_STUDIO_HERMES_COMMAND`.
+
 - **Plugin.** The repository root is the plugin. Its agent half starts the pane for the game
   folder you set, on 127.0.0.1, watches the feed and tells the desktop pane when it changes, and
   stops the pane when the plugin is unloaded. The desktop half shows the pane on the right and at

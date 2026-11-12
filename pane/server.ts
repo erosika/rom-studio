@@ -16,6 +16,7 @@ import { musicRoute } from "./music";
 import { listenRoute } from "./listen";
 import { ARCHIVE_MAX, sourceRoute } from "./source";
 import { dialogueRoute } from "./dialogue";
+import { childEnv } from "../kit/env";
 import { addReview, answer, decisions, entryId, reviews, setSettings, settings } from "../kit/inbox";
 import { SAFE, bodyUpTo, tooBig, fromElsewhere, hostIsOwn, isLoopback, sameKey, saysJson } from "../kit/web";
 
@@ -60,11 +61,11 @@ function cached<T>(name: string, key: string, make: () => T): T {
 // ask the kit; null when it has no such command yet or fails
 function kit(...args: string[]) {
   try {
-    const r = Bun.spawnSync(["bun", join(HERE, "../kit/kit.ts"), ...args, "--game", GAME], { stderr: "ignore", timeout: 20_000 });
+    const r = Bun.spawnSync(["bun", join(HERE, "../kit/kit.ts"), ...args, "--game", GAME], { env: childEnv(), stderr: "ignore", timeout: 20_000 });
     return r.exitCode === 0 ? r.stdout.toString().trim() : null;
   } catch { return null; }
 }
-const git = (...args: string[]) => Bun.spawnSync(["git", "-C", GAME, ...args], { env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" }, stderr: "ignore" }).stdout.toString().trim();
+const git = (...args: string[]) => Bun.spawnSync(["git", "-C", GAME, ...args], { env: childEnv({ GIT_OPTIONAL_LOCKS: "0" }), stderr: "ignore" }).stdout.toString().trim();
 
 // feed.jsonl in file order; a line that is not an entry is skipped, never fatal. A picture the feed names is looked for
 // where the entry says (in shots/, or elsewhere: agents working in their own copy of the game post pictures from there),

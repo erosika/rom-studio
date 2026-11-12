@@ -1,0 +1,26 @@
+# Runs the tests and checks the manifest's shape. `hermes plugins validate . --install-deps` needs Hermes
+# installed, so it stays a local step (see AGENTS.md).
+name: ci
+on:
+  push:
+    branches: [main, release]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+      - name: Player files (from the lockfile only)
+        run: cd player && bun install --frozen-lockfile
+      - name: Tests
+        run: bun test
+      - name: Manifest and catalog entry agree
+        run: bun .github/check-manifest.ts
+      - name: No binaries or bytecode tracked
+        run: |
+          ! git ls-files -z | xargs -0 file | grep -E "ELF|Mach-O|PE32|WebAssembly|python .*byte-compiled|Zip archive|gzip compressed"

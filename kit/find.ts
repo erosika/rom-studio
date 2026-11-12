@@ -1,6 +1,7 @@
 // kit/find.ts: search the game folder's source, and read the lines around one. The pane's Source tab is the same code.
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
+import { childEnv } from "./env";
 
 export type Hit = { line: number; text: string; mark: [number, number] | null };
 export type Found = { query: string; in: string | null; regex: boolean; files: { file: string; hits: Hit[] }[]; shown: number; more: number; atLeast: boolean };
@@ -54,7 +55,7 @@ export async function findText(game: string, query: string, o: { in?: string | n
   };
   if (existsSync(join(game, ".git"))) { // tracked and new files; what git ignores (build output) and binaries are skipped
     const cmd = ["git", "-C", game, "grep", "-n", "-I", "-z", "--no-color", "--untracked", ...(regex ? ["-E"] : ["-F", "-i"]), "-e", query, "--", ...(glob ? [`:(glob)${wider(glob)}`, `:(glob)${wider(glob).replace(/\/+$/, "")}/**`] : [])];
-    const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } }), err = new Response(p.stderr).text(), dec = new TextDecoder();
+    const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe", env: childEnv({ GIT_OPTIONAL_LOCKS: "0" }) }), err = new Response(p.stderr).text(), dec = new TextDecoder();
     let buf = "";
     for await (const chunk of p.stdout) {
       buf += dec.decode(chunk, { stream: true });

@@ -2,6 +2,7 @@
 // at it by id: `lore: <id>` in a comment, a "lore" field in a tool's table, a lore id column in notes. Read-only except newLore.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, relative } from "node:path";
+import { childEnv } from "./env";
 
 export const HEADINGS = ["Look", "Voice", "Easter eggs", "Links", "Lineage"];
 const ID = /^[a-z0-9][a-z0-9-]*$/;
@@ -97,7 +98,7 @@ export function picturesByLore(game: string, lore: LoreFile[]): Map<string, { fi
 /** Commits that touched the given files (read-only git log), newest first. */
 export function commitsFor(game: string, files: string[], limit = 30): Commit[] {
   if (!files.length || !existsSync(join(game, ".git"))) return [];
-  const r = Bun.spawnSync(["git", "-C", game, "log", `-${limit}`, "--date=format-local:%Y-%m-%d %H:%M", "--format=%x01%h%x02%ad%x02%s", "--name-only", "--", ...files], { stdout: "pipe", stderr: "pipe" });
+  const r = Bun.spawnSync(["git", "-C", game, "log", `-${limit}`, "--date=format-local:%Y-%m-%d %H:%M", "--format=%x01%h%x02%ad%x02%s", "--name-only", "--", ...files], { env: childEnv({ GIT_OPTIONAL_LOCKS: "0" }), stdout: "pipe", stderr: "pipe" });
   if (r.exitCode !== 0) return [];
   return r.stdout.toString().split("\x01").filter((c) => c.trim()).map((c) => { const [head, ...rest] = c.split("\n"), [hash, date, subject] = head!.split("\x02"); return { hash: hash!, date: date!, subject: subject!, files: rest.filter(Boolean) }; });
 }

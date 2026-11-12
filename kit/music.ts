@@ -3,13 +3,14 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { childEnv } from "./env";
 
 const KIT = import.meta.dir, env = process.env;
 const TOOL_PATH = [join(env.ARM_GCC ?? join(env.HOME ?? "", ".local/opt/arm-gnu-14.2"), "bin"), env.PATH].join(":");
 const MIDI_DIR = "sound/songs/midi", CFG = `${MIDI_DIR}/midi.cfg`, SAMPLES = "sound/direct_sound_samples";
 const text = (f: string) => { try { return readFileSync(f, "utf8"); } catch { return ""; } };
 const mtime = (f: string) => { try { return statSync(f).mtimeMs; } catch { return 0; } };
-const sh = (cmd: string[], cwd?: string) => { const r = Bun.spawnSync(cmd, { cwd, env: { ...env, PATH: TOOL_PATH }, stdout: "pipe", stderr: "pipe", timeout: 120_000, killSignal: "SIGKILL" }); return { ok: r.exitCode === 0, out: (r.stdout.toString() + r.stderr.toString()).trim() }; }; // a tool that hangs is stopped
+const sh = (cmd: string[], cwd?: string) => { const r = Bun.spawnSync(cmd, { cwd, env: childEnv({ PATH: TOOL_PATH }), stdout: "pipe", stderr: "pipe", timeout: 120_000, killSignal: "SIGKILL" }); return { ok: r.exitCode === 0, out: (r.stdout.toString() + r.stderr.toString()).trim() }; }; // a tool that hangs is stopped
 const FFMPEG = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-protocol_whitelist", "file,pipe"]; // reads the one file it is given: a file that names others on the network is not followed
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}${s < 10 ? `.${Math.floor((s % 1) * 10)}` : ""}`;
 
@@ -183,7 +184,7 @@ export function render(game: string, s: Sound, o: { seconds?: number; out?: stri
   if (!out && mtime(wav) > mtime(rom)) return { file: wav, route: ROUTE, note };
   mkdirSync(dirname(wav), { recursive: true });
   const quiet = hex(op("playbgm"), 0, 0, 0, op("end")), start = s.kind === "song" ? hex(op("playbgm"), n, n >> 8, 0, op("end")) : hex(op("playse"), n, n >> 8, op("end")); // the field's own music is stopped first
-  const r = Bun.spawnSync([process.execPath, join(KIT, "drive.ts"), "bytes", quiet, "wait", "120", "audio", `${wav}.part`, "bytes", start, "wait", String(Math.round(secs * 60)), "audio", "off"], { cwd: game, env: { ...env, GAME_DIR: game, ROM: rom }, stdout: "pipe", stderr: "pipe", timeout: 300_000, killSignal: "SIGKILL" }); // the emulator runs many times faster than the game: this long means it is stuck
+  const r = Bun.spawnSync([process.execPath, join(KIT, "drive.ts"), "bytes", quiet, "wait", "120", "audio", `${wav}.part`, "bytes", start, "wait", String(Math.round(secs * 60)), "audio", "off"], { cwd: game, env: childEnv({ GAME_DIR: game, ROM: rom }), stdout: "pipe", stderr: "pipe", timeout: 300_000, killSignal: "SIGKILL" }); // the emulator runs many times faster than the game: this long means it is stuck
   if (r.exitCode !== 0 || !existsSync(`${wav}.part`)) throw new Error(`The recording failed: ${(r.stderr.toString() || r.stdout.toString()).trim().split("\n").pop()}`);
   renameSync(`${wav}.part`, wav);
   return { file: wav, route: ROUTE, note };
@@ -312,7 +313,7 @@ export function musicCommand(game: string, args: string[]): number {
     if (what === "play") {
       const player = env.ROM_STUDIO_AUDIO_PLAYER ? [env.ROM_STUDIO_AUDIO_PLAYER] : Bun.which("ffplay") ? ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet"] : Bun.which("aplay") ? ["aplay", "-q"] : null;
       if (!player) console.log("No player found on this computer (ffplay or aplay): open the file, or use the Music tab of the pane.");
-      else console.log(Bun.spawnSync([...player, r.file], { stdout: "ignore", stderr: "ignore" }).exitCode === 0 ? `played with ${player[0]}` : `${player[0]} could not play it here (no sound device?): open the file, or use the Music tab of the pane.`);
+      else console.log(Bun.spawnSync([...player, r.file], { env: childEnv(), stdout: "ignore", stderr: "ignore" }).exitCode === 0 ? `played with ${player[0]}` : `${player[0]} could not play it here (no sound device?): open the file, or use the Music tab of the pane.`);
     }
     return 0;
   } catch (e) { console.error(`kit music: ${(e as Error).message}`); return 1; }
