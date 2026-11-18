@@ -14,19 +14,24 @@ let seen = lastLook();
 // h("p", { class: "x" }, "text", node): a small element builder, so text is never parsed as HTML
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
+  if (tag === "h2" && kids.flat(Infinity).every((k) => typeof k === "string" || typeof k === "number")) kids = kick(kids.flat(Infinity).join(""));
   for (const [k, v] of Object.entries(attrs ?? {})) if (v != null && v !== false) el.setAttribute(k, v === true ? "" : v);
   for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false && kid !== 0) el.append(kid);
   return el;
 }
+// a heading in the look of ROM Studio's video: its first words as a small cyan label pill, its counts after it in mono
+function kick(text) { const [first, ...rest] = String(text).split(" · "); return [h("span", { class: first.length > 28 ? "pill long" : "pill" }, first), rest.length ? h("span", { class: "meta" }, rest.join(" · ")) : null]; }
 const button = (label, onclick, attrs) => Object.assign(h("button", { type: "button", ...attrs }, label), { onclick });
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+// formatters made once: making one per call took seconds with thousands of entries
+const fmtTime = new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" }), fmtDay = new Intl.DateTimeFormat([], { day: "numeric", month: "short" });
 function when(t) {
   const d = new Date(t);
   if (isNaN(d)) return "";
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString([], { day: "numeric", month: "short" })}, ${time}`;
+  const time = fmtTime.format(d);
+  return d.toDateString() === new Date().toDateString() ? time : `${fmtDay.format(d)}, ${time}`;
 }
 
 // redraw one part of the page only when its data changed, keeping opened details open
@@ -44,7 +49,11 @@ const prefix = (name) => (name.match(/^[A-Za-z]+\d*/) ?? ["other"])[0];
 const caption = (name) => name.replace(/\.\w+$/, "").replace(/^[A-Za-z]+\d*[-_]?/, "").replace(/[-_]+/g, " ").trim() || name;
 const item = (dir, shot) => (p) => ({ name: p.name, t: p.t, shot, url: `${dir}/${encodeURIComponent(p.name)}?${Math.round(p.t ?? 0)}`, path: `${S.dir}/${dir}/${p.name}` });
 const shots = () => S.shots.map(item("shots", true));
-const sceneOf = (name) => S.feed.find((e) => e.shot === name && e.scene)?.scene;
+let sceneFeed = null, sceneLen = 0, sceneByShot = new Map(); // rebuilt only when the feed changes: a search per picture was slow
+const sceneOf = (name) => {
+  if (sceneFeed !== S.feed || sceneLen !== S.feed.length) { sceneFeed = S.feed; sceneLen = S.feed.length; sceneByShot = new Map(); for (const e of S.feed) if (e.shot && e.scene && !sceneByShot.has(e.shot)) sceneByShot.set(e.shot, e.scene); }
+  return sceneByShot.get(name);
+};
 const groupOf = (name) => sceneOf(name) ?? prefix(name);
 
 // a picture: pressing it opens the large view, where Previous and Next walk through `list`
@@ -118,7 +127,7 @@ function entry(e, { top, last, pics, card } = {}) {
     e.asked && h("p", { class: "asked" }, h("span", { class: "label" }, "You asked"), " ", e.asked),
     h("p", { class: "did" }, e.did),
     was && pic ? h("div", { class: "beforeafter" }, h("figure", {}, picture(was, [was, pic]), h("figcaption", {}, "before")), h("figure", {}, picture(pic, [was, pic], top), h("figcaption", {}, "after"))) : pic && picture(pic, pics, top),
-    top && !pic && !e.lost && h("div", { class: "empty-preview" }, h("strong", {}, "No picture yet"), h("span", {}, "The next scene picture will appear here.")),
+    top && !pic && !e.lost && h("div", { class: "empty-preview" }, h("span", { class: "pill" }, "No picture yet"), h("strong", {}, "This step has no picture"), h("span", {}, "The next scene picture will appear here.")),
     e.lost && h("p", { class: "quiet" }, `The picture was not found: ${e.lost}`),
     last && e.next && h("p", { class: "next" }, h("span", { class: "label" }, "Next"), " ", e.next), details(e, `d${e.t}${e.did.length}`)];
   // the newest entry is two surfaces side by side: the preview stage and the review
@@ -130,7 +139,7 @@ function drawStreams() {
   const list = streams(), now = Date.now(), pick = (name) => () => { ui.scene = ui.scene === name ? null : name; ui.more = 0; render(); };
   if (ui.scene && !list.some((s) => s.name === ui.scene)) ui.scene = null;
   const newest = S.feed[S.feed.length - 1];
-  $("streams-h").textContent = newest ? `Streams · ${list.length} · ${count(S.feed.length, "entry", "entries")} · newest ${when(newest.t)}` : "Streams";
+  $("streams-h").replaceChildren(...kick(newest ? `Streams · ${list.length} · ${count(S.feed.length, "entry", "entries")} · newest ${when(newest.t)}` : "Streams").filter(Boolean));
   const age = (s) => now - Date.parse(s.last.t), recent = list.filter((s) => age(s) < ACTIVE_MIN * 60000 || s.work > 0 || s.name === ui.scene);
   const shown = ui.allStreams ? list : recent.length ? recent : [...list].sort((a, b) => age(a) - age(b)).slice(0, 6), hidden = list.length - shown.length;
   const tiles = shown.map((s) => {
@@ -151,12 +160,22 @@ function drawStreams() {
 }
 function drawFeed() {
   const list = S.feed.map((e, i) => ({ e, i })).filter(({ e }) => !ui.scene || groupName(e) === ui.scene).reverse(), newest = shots()[0];
-  if (!list.length) return newest ? h("div", { class: "card" }, picture(newest, null, true), h("p", { class: "quiet" }, `Newest picture: ${caption(newest.name)} · ${when(newest.t)}. The agent has not written any reports yet. Every picture is under Gallery.`))
-    : h("p", { class: "card quiet" }, "Nothing yet. Ask your agent for the first scene. Each thing it does will be listed here, with a picture.");
+  if (!list.length && ui.scene) return h("p", { class: "card quiet" }, "Nothing in this stream yet.");
+  if (!list.length) return newest ? h("div", { class: "card" }, picture(newest, null, true), h("p", { class: "quiet" }, `Newest picture: ${caption(newest.name)} · ${when(newest.t)}. The agent has not written any steps yet. Every picture is under Gallery.`))
+    : welcome();
   const pics = list.map(({ e }) => picOf(e)).filter(Boolean), lasts = new Set(streams().map((s) => s.last)), shown = list.slice(0, SHOW + ui.more);
   const out = shown.map(({ e, i }, at) => reuse("feed", JSON.stringify([i, e, at === 0, lasts.has(e), isNew(e), ui.scene, S.reviews?.[e.id]]), () => entry(e, { top: at === 0, last: lasts.has(e), pics, card: true })));
   settle("feed");
   return [out[0], out.length > 1 && h("details", { class: "history", "data-key": "earlier-feed" }, h("summary", {}, `Earlier updates · ${list.length - 1}`), h("div", { class: "stack" }, out.slice(1), list.length > shown.length && button(`Show ${Math.min(SHOW, list.length - shown.length)} earlier`, () => { ui.more += SHOW; render(); })))];
+}
+// a new game: where the first picture will be, how to begin, and where the answers go (the same two surfaces as a step)
+function welcome() {
+  return h("article", { class: "entry first welcome" },
+    h("div", { class: "stage" }, h("div", { class: "empty-preview" },
+      h("span", { class: "pill" }, "New game"), h("strong", {}, "Your game's first picture will appear here"),
+      h("ol", { class: "begin" }, h("li", {}, "Start your agent and say “let's make my game”."), h("li", {}, "Answer its four questions: your world, who you are, what happens first, your starting town."),
+        h("li", {}, "Each step it takes shows here as a sentence with a picture from the running game.")))),
+    h("div", { class: "review" }, h("h3", {}, "Your answers"), h("p", { class: "quiet" }, "Each step gets Looks right and Needs work here, with a note for the agent. It reads them before its next step.")));
 }
 function drawLadder() {
   if (!S.scenes.length) return h("p", { class: "quiet" }, "The list of scenes will appear here once it is written in game.md.");
@@ -176,7 +195,7 @@ function drawGallery() {
   draw("chips", [names, ui.chip], () => names.map((n) => button(n, () => { ui.chip = n; render(); }, { class: "chip", "aria-pressed": String(n === ui.chip) })));
   draw("comparing", ui.pinned?.name, () => ui.pinned && h("p", { class: "card" }, `Comparing with ${ui.pinned.name}. Open another picture to see the two side by side. `, button("Stop comparing", () => { ui.pinned = null; render(); })));
   draw("grid", [shown.map((p) => p.url), S.kept, seen], () => shown.length ? shown.map((p) => tile(p, shown)) : h("p", { class: "quiet" }, "No pictures match."));
-  $("pictures-count").textContent = `${count(all.length, "picture")} from the game, newest first` + (shown.length < all.length ? ` · showing ${shown.length}` : "");
+  $("pictures-count").replaceChildren(...kick(`Pictures · ${count(all.length, "picture")} from the game, newest first` + (shown.length < all.length ? ` · showing ${shown.length}` : "")).filter(Boolean));
 }
 
 // ---- the large view: one picture, or two at the same scale
@@ -248,7 +267,7 @@ function mapBox(m, layers) {
   return box;
 }
 function graph(maps) {
-  const norm = (n) => n.toLowerCase().replace(/[^a-z0-9]/g, ""), own = (n) => maps.find((m) => norm(m.name) === norm(n))?.name ?? n; // doors name maps in plain words
+  const norm = (n) => n.toLowerCase().replace(/[^a-z0-9]/g, ""), byNorm = new Map([...maps].reverse().map((m) => [norm(m.name), m.name])), own = (n) => byNorm.get(norm(n)) ?? n; // doors name maps in plain words; one lookup table, not a search per door
   maps = maps.map((m) => ({ ...m, doors: m.doors.map((d) => ({ ...d, to: own(d.to) })), joins: m.joins.map((j) => ({ ...j, to: own(j.to) })) }));
   const names = [...new Set(maps.flatMap((m) => [m.name, ...m.doors.map((d) => d.to), ...m.joins.map((j) => j.to)]))];
   const at = (n) => { const i = names.indexOf(n); return [80 + (i % 2) * 160, 27 + Math.floor(i / 2) * 64]; };
@@ -274,17 +293,52 @@ function drawMaps() {
 }
 
 // ---- Lore: ids on the left; for one id its file, its pictures in time order, what points at it, its lineage
-function prose(text) { // the lore file as headings, lists and paragraphs; `code` kept as code; nothing parsed as HTML
-  const inline = (s) => s.split(/(`[^`]+`)/).map((part) => part.startsWith("`") && part.length > 2 ? h("code", {}, part.slice(1, -1)) : part);
-  const out = []; let list = null;
-  for (const line of text.split("\n")) {
-    const head = line.match(/^(#+)\s+(.*)$/), li = line.match(/^\s*[-*]\s+(.*)$/);
-    if (!li) list = null;
-    if (head) out.push(h(head[1].length === 1 ? "h3" : "h2", {}, head[2]));
-    else if (li) { if (!list) out.push(list = h("ul", {})); list.append(h("li", {}, inline(li[1]))); }
+function prose(text) { // Markdown as headings, lists, quotes, tables, boxed blocks and paragraphs; `code` and **bold** kept; nothing parsed as HTML
+  const inline = (s) => s.split(/(`[^`]+`|\*\*[^*]+\*\*)/).map((part) => part.startsWith("`") && part.length > 2 ? h("code", {}, part.slice(1, -1)) : part.startsWith("**") && part.length > 4 ? h("strong", {}, part.slice(2, -2)) : part);
+  const out = [], lines = text.split("\n"); let list = null, kind = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("```")) { // a fenced block, kept line for line: in a script draft these are the text boxes
+      const body = []; while (++i < lines.length && !lines[i].startsWith("```")) body.push(lines[i]);
+      out.push(h("pre", { class: "box" }, body.join("\n"))); list = null; continue;
+    }
+    if (line.startsWith("|")) { // a table; the |---| line under the header is skipped
+      const rows = []; for (; i < lines.length && lines[i].startsWith("|"); i++) if (!/^\|[\s:|-]+\|?\s*$/.test(lines[i])) rows.push(lines[i].trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
+      i--; out.push(h("div", { class: "table" }, h("table", {}, h("thead", {}, h("tr", {}, rows[0].map((c) => h("th", {}, inline(c))))), h("tbody", {}, rows.slice(1).map((r) => h("tr", {}, r.map((c) => h("td", {}, inline(c))))))))); list = null; continue;
+    }
+    const head = line.match(/^(#+)\s+(.*)$/), li = line.match(/^\s*[-*]\s+(.*)$/), ol = line.match(/^\s*\d+\.\s+(.*)$/), quote = line.match(/^>\s?(.*)$/);
+    const now = li ? "ul" : ol ? "ol" : null;
+    if (now !== kind) list = null; kind = now;
+    if (head) out.push(h(head[1].length === 1 ? "h3" : head[1].length === 2 ? "h2" : "h4", {}, inline(head[2])));
+    else if (now) { if (!list) out.push(list = h(now, {})); list.append(h("li", { class: /^\s{2,}/.test(line) ? "sub" : "" }, inline((li ?? ol)[1]))); }
+    else if (quote) out.push(h("p", { class: "stage" }, inline(quote[1])));
+    else if (/^-{3,}\s*$/.test(line)) out.push(h("hr", {}));
     else if (line.trim()) out.push(h("p", {}, inline(line)));
   }
   return out;
+}
+
+// ---- Reports: what the helpers wrote back (out/handoff/reports), newest first; one opens beside the list
+let RP = { list: null, one: null, error: null };
+async function loadReports(name) {
+  try {
+    const r = await fetch("reports", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status === 404 ? "This pane was started before the Reports tab existed. Start it again to see the reports." : `The studio answered ${r.status}.`);
+    RP.list = await r.json(); RP.error = null;
+    ui.report = name ?? ui.report ?? RP.list[0]?.name ?? null;
+    if (ui.report && RP.one?.name !== ui.report) RP.one = null;
+    if (ui.report) { const one = await fetch(`reports/${encodeURIComponent(ui.report)}`, { cache: "no-store" }); RP.one = one.ok ? await one.json() : null; }
+  } catch (e) { RP.error = e.message.includes("fetch") ? "Cannot reach the studio." : e.message; }
+  render();
+  if (name) document.querySelector("#tab-reports .card")?.scrollIntoView({ block: "start" });
+}
+function drawReports() {
+  if (RP.error) return h("p", { class: "card quiet" }, RP.error);
+  if (!RP.list) return h("p", { class: "card quiet" }, "Reading the reports.");
+  if (!RP.list.length) return h("p", { class: "card quiet" }, "No reports yet. When a helper finishes a job it writes what it did, what it decided and what it asks you in out/handoff/reports; each one shows up here.");
+  const ids = h("nav", { class: "ids", "aria-label": "Reports" }, RP.list.map((r) => button([h("strong", {}, r.title), h("span", { class: "quiet" }, `${when(r.t)} · ${Math.max(1, Math.round(r.size / 1000))} KB`), h("span", { class: "mood" }, r.name)], () => loadReports(r.name), { "aria-pressed": String(r.name === ui.report) })));
+  const one = RP.one;
+  return [ids, one ? h("section", { class: "card prose report" }, h("p", { class: "quiet" }, h("code", {}, `out/handoff/reports/${one.name}`), ` · written ${when(one.t)}`), prose(one.text)) : h("p", { class: "card quiet" }, "Choose one on the left.")];
 }
 async function loadLore(id) {
   try {
@@ -376,6 +430,8 @@ function drawSettings() {
 function render() {
   if (!S) return;
   draw("tab-lore", [L, ui.lore, S.kept, seen], drawLore);
+  draw("tab-reports", [RP, ui.report], drawReports);
+  $("streams-box").hidden = !S.feed.length;
   draw("streams", [S.feed, S.reviews, ui.scene, ui.group, ui.allStreams, seen, Math.floor(Date.now() / 60000)], drawStreams);
   draw("feed-body", [S.feed, S.reviews, ui.scene, ui.group, ui.more, seen], drawFeed);
   draw("tab-decisions", S.decisions, drawDecisions);
@@ -385,32 +441,45 @@ function render() {
   draw("waiting", [open, work], () => [open > 0 && h("a", { href: "#decisions", class: "wait" }, `${count(open, "question")} from the agent ${open === 1 ? "is" : "are"} waiting for you`),
     work > 0 && h("p", { class: "quiet" }, `${count(work, "entry", "entries")} you marked “needs work” or left a note on ${work === 1 ? "has" : "have"} no answer from the agent yet.`)]);
   draw("ladder-body", [S.scenes, S.scenesFrom], drawLadder);
-  drawGallery();
-  draw("tab-scenes", [S.scenes, S.feed, S.shots, S.kept, seen], drawScenes);
-  draw("tab-maps", [S.maps, ui.map, ui.layers], drawMaps);
+  // thousands of pictures and maps: built only while their tab is open, so the other tabs open at once
+  const tab = tabNow();
+  if (tab === "gallery") drawGallery();
+  if (tab === "scenes") draw("tab-scenes", [S.scenes, S.feed, S.shots, S.kept, seen], drawScenes);
+  if (tab === "maps") draw("tab-maps", [S.maps, ui.map, ui.layers], drawMaps);
   const here = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname), far = (S.playLinks ?? []).find((l) => { try { return new URL(l).hostname === location.hostname; } catch { return false; } }) ?? S.playFar, link = (here ? S.play : far ?? (S.play && !/\/\/(127\.0\.0\.1|localhost)/.test(S.play) ? S.play : null)) ?? null;
   $("play-link").toggleAttribute("href", false); if (link) $("play-link").href = link;
   $("play-link").textContent = link ? "Play your game" : S.play ? "The player only answers on the computer it runs on" : "The player is not running";
   $("play-link").classList.toggle("off", !link);
   $("play-how").textContent = link ? (S.playFar && !here ? "Opens over your own network. Accept the certificate warning once." : "") : S.play ? "For this device, ask your agent to run: kit play --phone" : "Ask your agent to run: kit play";
+  $("claim").textContent = S.dir ? `Game folder · ${S.dir.split(/[\\/]/).filter(Boolean).pop()}` : "";
   const lb = S.lastBuild; // "OK 12s" or "FAILED 40s", written by kit build
   $("built").textContent = lb ? `Last build: ${/^FAILED/.test(lb.text) ? "failed" : "worked"} (${lb.text.replace(/^(OK|FAILED)\s*/, "") || "no time given"}) · ${when(lb.t)}` : S.built ? `Latest build: ${when(S.built)}` : "No build yet.";
   $("built").className = lb && /^FAILED/.test(lb.text) ? "built failed" : "built quiet";
 }
+// still: the page stays as it is while the user looks; new steps wait until they resume (kept per browser)
+let still = stored("paneStill", "") === "on";
+const PAUSED = "Updates paused. The page stays as it is until you press Resume updates.";
+function drawStill() { $("still").textContent = still ? "Resume updates" : "Pause updates"; $("still").setAttribute("aria-pressed", String(still)); }
 async function refresh() {
   try {
     const r = await fetch("state", { headers: etag ? { "If-None-Match": etag } : {}, cache: "no-store" });
     if (r.status === 200) { etag = r.headers.get("ETag"); S = await r.json(); page ??= S.page; render(); }
     else render(); // nothing new: only the minute may have turned (quiet marks)
-    $("status").textContent = S && S.page !== page ? "The studio was updated. Reload this page to get the new version." : "";
-  } catch { $("status").textContent = "Cannot reach the studio. Trying again."; }
+    $("status").textContent = S && S.page !== page ? "The studio was updated. Reload this page to get the new version." : still ? PAUSED : "";
+  } catch {
+    $("status").textContent = "Cannot reach the studio. Trying again every few seconds.";
+    if (!S && $("opening")) $("opening").textContent = "The studio is not answering yet. This page tries again every few seconds.";
+  }
 }
+const tabNow = () => ["gallery", "scenes", "maps", "music", "pixels", "dialogue", "source", "lore", "reports", "decisions", "settings"].find((t) => location.hash === `#${t}`) ?? "now";
 function showTab() {
-  const tab = ["gallery", "scenes", "maps", "music", "dialogue", "source", "lore", "decisions", "settings"].find((t) => location.hash === `#${t}`) ?? "now";
+  const tab = tabNow();
   if (tab === "lore") loadLore();
+  if (tab === "reports") loadReports();
   if (tab === "settings") loadSettings();
   for (const el of document.querySelectorAll(".tab")) el.hidden = el.id !== `tab-${tab}`;
   for (const a of $("tabs").children) a.setAttribute("aria-current", String(a.hash === `#${tab}`));
+  render(); // the big tabs are only built when opened
 }
 async function sendRefs(files) {
   for (const f of files) {
@@ -435,12 +504,19 @@ addEventListener("keydown", (ev) => { if ($("viewer").open && (ev.key === "Arrow
 addEventListener("resize", fit);
 addEventListener("hashchange", showTab);
 // a host that embeds this page can post "feed" to make it look right away instead of at the next poll
-addEventListener("message", (ev) => { if (ev.data === "feed") refresh(); });
+addEventListener("message", (ev) => { if (ev.data === "feed" && !still) refresh(); });
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { try { localStorage.paneSeen = Date.now(); } catch {} } else { seen = lastLook(); render(); refresh(); }
+  if (document.hidden) { try { localStorage.paneSeen = Date.now(); } catch {} } else if (!still) { seen = lastLook(); render(); refresh(); }
 });
-setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);
-setInterval(() => { if (!document.hidden && location.hash === "#lore") loadLore(); }, POLL_MS * 5);
+$("still").onclick = () => {
+  still = !still;
+  try { localStorage.paneStill = still ? "on" : ""; } catch {}
+  drawStill();
+  if (still) $("status").textContent = PAUSED; else { seen = lastLook(); refresh(); }
+};
+setInterval(() => { if (!document.hidden && !still) refresh(); }, POLL_MS);
+setInterval(() => { if (!document.hidden && !still && location.hash === "#lore") loadLore(); }, POLL_MS * 5);
+drawStill();
 showTab();
 refresh();
 

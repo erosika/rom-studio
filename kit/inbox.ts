@@ -66,7 +66,7 @@ export function setSettings(game: string, change: Record<string, unknown>) {
     try { closeSync(openSync(lock, "wx")); break; } catch (e: any) {
       if (e?.code !== "EEXIST") throw e;
       let age = Infinity; try { age = Date.now() - statSync(lock).mtimeMs; } catch {}
-      if (age > 10_000 || tries > 200) rmSync(lock, { force: true }); else Bun.sleepSync(20); // a writer that died left it behind
+      if (age > 10_000) rmSync(lock, { force: true }); else Bun.sleepSync(20); // only a lock older than any write takes is a dead writer's: a long wait alone never takes a live one
     }
   }
   try {

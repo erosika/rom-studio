@@ -7,8 +7,9 @@ Read `README.md` (what a user sees), `docs/STUDIO.md` (the contracts) and `docs/
 ## Layout
 
     plugin.yaml          the Hermes manifest: name, version, requires_hermes, config_schema
-    __init__.py          agent half: starts and stops the pane, watches the feed, registers the skills
-    dashboard/           backend route /api/plugins/rom-studio/where (plugin_api.py) and its manifest
+    __init__.py          agent half: starts and stops the pane, watches the feed and the settings, registers the skills
+    common.py            the settings, the checks and the sentences the three halves share
+    dashboard/           backend route /api/plugins/rom-studio/where (plugin_api.py), the dashboard tab and its manifest
     desktop/plugin.js    desktop half: the pane in a frame; plain ESM, no build step
     kit/                 the command-line kit
       kit                bash entry point; kit.ts holds every command
@@ -20,9 +21,9 @@ Read `README.md` (what a user sees), `docs/STUDIO.md` (the contracts) and `docs/
       *.py               redraw helpers (need Pillow)
     pane/                the page the user watches: server.ts, index.html, pane.js, music, source, listen
       sample/            a small neutral game folder for trying the pane
-    player/              the built game in a browser: server.ts, play.js, guard.js (flash guard), hermes-link.js
+    player/              the built game in a browser: server.ts, play.js, guard.js (flash guard)
     skills/              Agent Skills; make-your-game is the guided path
-    docs/                STUDIO.md (reference), PRINCIPLES.md (rules), images/ (README pictures)
+    docs/                STUDIO.md (reference), PRINCIPLES.md (rules), HERMES.md (the plugin's two-minute start), images/ (README pictures)
     catalog/             the catalog entry and the pull request text
 
 The plugin is the repository root because a catalog install keeps one folder and the plugin runs

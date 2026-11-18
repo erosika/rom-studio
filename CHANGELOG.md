@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.3.0
+
+- **A new look for the pane.** A graphite backdrop with a paired light mode, IBM Plex Mono for the
+  name, tabs, labels and captions and Inter for longer text, small cyan label pills for headings,
+  the open tab as a filled pill, hairline rules, framed panels, and game pictures pixel-sharp in a
+  framed panel. Inside Hermes it follows Hermes's colours and mode, as before. The two typefaces
+  ship with the pane, unmodified, with their licences (both SIL OFL 1.1; `pane/fonts/README.md`),
+  so the page still loads nothing from outside. Every word on Now, Gallery and Decisions is checked
+  at 4.5:1 or more against what is behind it, in dark and in light. Nothing moves: no transitions,
+  no hover glow, and a Pause updates switch keeps the page still.
+- **One command in, one out.** `kit plugin install --game <folder>` links a checkout into Hermes,
+  saves the game folder in Hermes's own settings and switches the plugin on. `uninstall` reverses
+  all three, and `status` reports where things stand. `docs/HERMES.md` is the two-minute start.
+- **Settings take effect without a restart.** Game folder, pane address and port are read again as
+  they change (within ten seconds), from Settings, Plugins, rom-studio or `hermes config set`.
+- **Plain messages instead of a blank pane.** A sentence and one button for each of: no game
+  folder, folder missing, bun missing, port taken, another game's page on the port, page stopped,
+  and the plugin switched off.
+- **Starts and stops cleanly.** The page is started on this computer only, started again if it
+  stops, and stopped with the plugin, also when Hermes is killed outright. A page you started
+  yourself is left alone. The page's output goes to `pane.log` in the plugin's data folder, with
+  any key hidden.
+- **A tab in the web dashboard** (`hermes dashboard`), in the dashboard's own colours.
+- **The in-game agent link is out of the player.** The player page is a plain player again: the
+  screen, the pad, saves and save points, the flash guard, the naming-screen box. `player/hermes-link.js`,
+  `GET /hermes/info`, `POST /hermes/ask` and the `hermes_*` game settings are gone, so the player no
+  longer runs `hermes` for any reason.
+- **The pixel step.** `kit pixel find` marks stray pixels and small patches in a foreign hue in an
+  indexed picture; `kit pixel edit` fixes them by hand from a recorded edits file (with `--undo`),
+  including colour edits and drawing onto chosen colour numbers; `kit pixel variant` makes an outfit
+  of a picture; `kit pixel colours` says which palette the game draws a picture with. The pane has a
+  Pixels tab for the same work. A picture outside the game folder is never paired with a game
+  palette by its name alone.
+- **Cheat codes as data.** `kit codes` lists and checks `codes.json` in the game folder, and
+  `kit build` writes the table from it. This needs the optional base, which is not shipped.
+- **The pane opens in about two seconds again** with thousands of pictures: Gallery, Scenes and
+  Maps are built when first opened.
+- **Fixes.** `kit note` refuses a note that starts with a flag instead of writing it to the feed.
+  Two writers changing `settings.json`
+  at once can no longer lose a key after a long wait. `kit drive bytes` writes its script at the far
+  end of the game's text buffer and refuses more than fits.
+- Seen running: the web dashboard tab and the desktop workspace (the desktop app's own screens,
+  served by `hermes webapp`) on Linux with Hermes 0.23, and loaded by Hermes 0.23 on macOS 15 with
+  the page served there. Building a game is still Linux only.
+
 ## 0.2.0
 
 - **An agent plays the game.** `kit agent-play` lets an agent play the built game a step at a time:

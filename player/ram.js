@@ -5,6 +5,17 @@
 const HEAD = 16, FRAME = 0x1fc, WRAM = 0x21000, WRAM_SIZE = 0x40000, STATE_SIZE = WRAM + WRAM_SIZE; // the emulator's save point layout
 const EWRAM = 0x02000000, SIGN = 32;
 
+let memory = null;
+/** The emulator's memory, once it has been made. */
+export const gameMemory = () => memory;
+/** Call before the emulator's script is loaded: keeps hold of the memory it makes (the shared one when there are several). */
+export function captureMemory() {
+  const Real = WebAssembly.Memory;
+  function Kept(desc) { const m = new Real(desc); if (!memory || desc?.shared) memory = m; return m; }
+  Kept.prototype = Real.prototype;
+  WebAssembly.Memory = Kept;
+}
+
 /** The save point's own bytes: it is kept as a picture with the bytes in a private part, packed. Null when it is neither that nor plain. */
 export async function stateBytes(file) {
   const dv = new DataView(file.buffer, file.byteOffset, file.byteLength);

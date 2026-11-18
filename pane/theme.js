@@ -8,6 +8,8 @@
   const label = () => { button.textContent = (root.dataset.theme ?? (device.matches ? "light" : "dark")) === "dark" ? "Light mode" : "Dark mode"; };
   if (embedded) {
     button.hidden = true;
+    // a host that never sends its colours (an older one, or a message lost) still gets a page: its own palette, shown
+    setTimeout(() => { if (!root.dataset.hostTheme) delete root.dataset.embedded; }, 1500);
     addEventListener("message", (event) => {
       const data = event.data;
       if (event.source !== window.parent || !origin || event.origin !== origin || data?.type !== "rom-studio:theme" || data.version !== 1) return;

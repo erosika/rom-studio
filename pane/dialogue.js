@@ -45,7 +45,7 @@
     const n = S.notes.size, el = $("dialogue-notes");
     el.replaceChildren(h("p", { class: "quiet" }, n ? `${n} note${n === 1 ? "" : "s"} waiting. They are kept in the game folder; tell your agent to read your dialogue notes.` : "Press Note on any text to say what should change. Notes are kept in the game folder for your agent."),
       n ? h("div", { class: "source-row" }, h("a", { href: "dialogue/notes.md", download: "dialogue-notes.md", class: "dialogue-export" }, "Export as a file"),
-        button("Copy all", async (ev) => { try { await navigator.clipboard.writeText(await (await fetch("dialogue/notes.md", { cache: "no-store" })).text()); ev.target.textContent = "Copied"; } catch { ev.target.textContent = "Not copied: use Export"; } })) : null);
+        button("Copy all", async (ev) => { try { await navigator.clipboard.writeText(await (await fetch("dialogue/notes.md", { cache: "no-store" })).text()); ev.target.textContent = "Copied"; } catch { ev.target.textContent = "Not copied: use Export"; } })) : ""); // "" not null: replaceChildren writes null out as the word
   }
   function draw() {
     const side = $("dialogue-places"), out = $("dialogue-said"), n = $("dialogue-count"); if (!side) return;

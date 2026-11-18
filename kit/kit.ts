@@ -11,7 +11,10 @@ import { answer, ask, decisions, reviews, setSettings, settings, workers } from 
 import { MUSIC_HELP, musicCommand } from "./music";
 import { FIND_HELP, findCommand } from "./find";
 import { DIALOGUE_HELP, dialogueCommand } from "./dialogue";
+import { PIXEL_HELP, pixelCommand } from "./pixel";
+import { CODES_HELP, codesCommand, writeCodesTable } from "./codes";
 import { childEnv } from "./env";
+import { PLUGIN_HELP, pluginCommand } from "./plugin";
 
 const BASE_FOR = { file: "include/constants/expansion.h", blob: "7d775c0c920e2fc2c41019c8e5a4d7edd5eb80a1", says: "the expanded engine 1.17.2" }; // the one version kit/base was made for
 const SCRIPT_TOOL_URL = "https://github.com/huderlem/poryscript/releases/download/3.6.1/poryscript-linux.zip";
@@ -61,6 +64,9 @@ const HELP = `kit: build, play and look at your game. One game folder, one build
   ${MUSIC_HELP}
   ${FIND_HELP}
   ${DIALOGUE_HELP}
+${PIXEL_HELP}
+  ${CODES_HELP}
+  ${PLUGIN_HELP}
   kit agent-play --agent "<command>" | --provider <name> --model <id> [--steps 100] [--watch [port]]   an agent plays the built game, a step
                              at a time: your own agent as a command, or a model by its key; a page to watch on (kit agent-play help says all)
   kit keep "<scene name>"    commit the game folder with that message and tick the scene in game.md
@@ -76,8 +82,8 @@ Steps (shot, press, where): every run starts from a fresh new game, so put the w
   time [HH:MM|midday|midnight]   rtc host|<ms>      (the game's clock: print it, or set it and hold it; put it before warp)
   shot <png>   where   save <file>   load <file>     (a picture or the position mid-route; save a moment and carry on from it in a later run)
 Settings: settings.json in the game folder holds the player's name (7 letters at most) and look (girl or boy).
-  Talk to your agent from inside the game (the base's START menu entry, in the player): hermes_link (false switches it off), hermes_command
-  (default "hermes"; another program only through ROM_STUDIO_HERMES_COMMAND, set by you), hermes_session (the conversation's name), hermes_preface (what the agent is told first), hermes_timeout (seconds, default 60).
+  Talking to your agent from inside the game (a box for your words under the screen) is not in the player: it was
+  taken out in 0.3.0 with its hermes_* settings.
   "original_game": the path of your own copy of the original game file, which kit patch makes the patch from (or --original once).
   "image_model": the picture model the user chose (the kit makes no pictures itself: your own tool reads this). "image_models": the choices.
   "workers": the helpers you may hand work to ({name, how, model, note, enabled}); "default_worker": the one to use unless told otherwise.
@@ -209,6 +215,9 @@ function writeSettingsHeader() { // settings.json -> include/studio_settings.h, 
 // ---- commands ----
 async function build(): Promise<boolean> {
   needGame(); writeSettingsHeader();
+  const codes = writeCodesTable(GAME); // codes.json -> include/studio_codes_table.h (STUDIO_CODES_BUILD=test for a test build)
+  if (!codes.ok) { console.error(codes.message); return false; }
+  if (codes.written) console.log(`  codes: ${codes.message}`);
   const start = Date.now(), log = join(OUT, "build.log");
   const p = Bun.spawn(["bash", join(KIT, "build.sh"), GAME], { env: childEnv({ SCRIPT_TOOL: scriptTool() ?? "" }), stdout: "inherit", stderr: "inherit" });
   const tick = setInterval(() => { // progress for long builds
@@ -259,6 +268,8 @@ function note() {
   const shot = opt("shot"), next = opt("next"), asked = opt("asked"), scene = opt("scene") ?? currentScene(), detail = opt("detail");
   const by = opt("by"), before = opt("before"), answers = opt("answers"), loreId = opt("lore"), did = args.join(" ").trim();
   if (!did) die(`kit note needs a sentence about what changed in the game: kit note "Added a woman by the stove."`);
+  // "kit note --help" (or a stray flag) is not a sentence: it would go into the user's feed as the note itself.
+  if (/^-/.test(did)) die(`kit note "<sentence>" [--shot png] [--next "<sentence>"] [--asked "<words>"] [--scene "<name>"]: "${did}" is not a sentence, so nothing was written to the feed.`);
   const inGame = (p?: string) => (p ? relative(GAME, isAbsolute(p) ? p : join(GAME, p)) : undefined);
   const rel = inGame(shot), relBefore = inGame(before);
   for (const r of [rel, relBefore]) if (r && !existsSync(join(GAME, r))) console.error(`note: the picture ${r} does not exist in the game folder (written anyway)`);
@@ -359,9 +370,9 @@ function status() {
   const lb = join(OUT, ".last-build");
   console.log(existsSync(lb) ? `last build: ${readFileSync(lb, "utf8").trim()}, at ${statSync(lb).mtime.toLocaleString()}` : existsSync(ROM) ? `last build: at ${statSync(ROM).mtime.toLocaleString()}` : "last build: none yet");
   try { const m = settings(GAME).image_model; if (m) console.log(`image model: ${m}  (the user's choice in settings.json; your picture tool should use it)`); } catch {}
-  try { // the START menu's agent entry: the game's side is in the base, the other side is the player page
-    const symf = ROM.replace(/\.gba$/, ".sym"), has = existsSync(symf) && /\bgHermesMailbox$/m.test(readFileSync(symf, "utf8")), st = settings(GAME);
-    console.log(`in-game agent link: ${!existsSync(symf) ? "unknown until the game is built" : !has ? "this game has no mailbox for it (the base's menu entry is not in)" : st.hermes_link === false ? 'the game has the mailbox; switched off (settings.json "hermes_link": false)' : `the game has the mailbox; on. In the player, START and the agent entry open a box for your words; they go to \`${st.hermes_command ?? "hermes"}\`, conversation "${st.hermes_session ?? "rom-studio-game"}"`}`);
+  try { // the START menu's agent entry: the game's side is in the base; the player has no side for it since 0.3.0
+    const symf = ROM.replace(/\.gba$/, ".sym"), has = existsSync(symf) && /\bgHermesMailbox$/m.test(readFileSync(symf, "utf8"));
+    if (has) console.log("in-game agent link: the game has the mailbox, but this player does not answer it (the link was taken out of the player in 0.3.0)");
   } catch {}
   console.log(`next: ${missing ? "get the missing tools above" : !existsSync(ROM) ? "run kit build" : "kit play to open the game, kit shot for a picture"}`);
 }
@@ -589,6 +600,9 @@ switch (command) {
   case "music": needGame(); process.exit(musicCommand(GAME, args));
   case "find": needGame(); process.exit(await findCommand(GAME, args));
   case "dialogue": needGame(); process.exit(dialogueCommand(GAME, args));
+  case "pixel": needGame(); process.exit(pixelCommand(GAME, args));
+  case "codes": needGame(); process.exit(codesCommand(GAME, args));
+  case "plugin": process.exit(pluginCommand(REPO, GAME, args));
   case "agent-play": if (args[0] !== "help") needRom(); process.exit(await (await import("./agent-play/play")).agentPlayCommand(GAME, args));
   case "note": note(); break;
   case "reviews": reviewsCmd(); break;

@@ -14,6 +14,8 @@ guides the path.
 
 ![Decisions: the agent's question and the saved answer](docs/images/tour-decisions.jpg)
 
+![The pane as it looks since 0.3.0, here as the ROM Studio tab of the Hermes web dashboard with the sample game](docs/images/plugin-dashboard.png)
+
 ## What it does not include
 
 ROM Studio names no game and no engine, and it neither contains nor fetches one. You bring your
@@ -27,20 +29,19 @@ holds only your changes; the other person applies it to their own copy of the sa
 
 **The optional base is not in this repository.** The kit was made alongside a set of patches for
 one specific version of one engine (calm changes to the game's own effects, a quick start, a hook
-the kit uses to set story switches and give creatures, exact message text, and the START menu's
-agent entry). They are diffs against that engine's source, so they are not shipped here.
+the kit uses to set story switches and give creatures, exact message text). They are diffs against that engine's source, so they are not shipped here.
 `kit setup` says the base is not there and carries on. Without it, building, playing, pictures,
 walking, placing the player, starting a script, notes, keep, undo, maps, scenes, listing and
 replacing music, the source search and the patch all work. Not available: setting flags, giving a creature, reading message
 text exactly, the quick start (each new build plays through the original opening once), the calm
-changes inside the game, the game's `settings.json` player name and look, and the in-game agent
-link. The player's flash guard does not depend on the base and is always on.
+changes inside the game, and the game's `settings.json` player name and look. The player's flash guard does not depend on the base and is always on.
 
 ## Requirements
 
-- Linux. It is the only system this has been run on, and the build scripts use Linux tools.
-  macOS and Windows are not supported; Windows through WSL has not been tried.
-- Hermes 0.21.6 or newer for the plugin (run on 0.23.1 only). The kit and the skill also work
+- Linux. The build scripts use Linux tools, so making a game is Linux only. macOS and Windows
+  are not supported; Windows through WSL has not been tried. (The plugin and its page alone have
+  also been loaded by Hermes on macOS, for watching a page that runs elsewhere.)
+- Hermes 0.21.6 or newer for the plugin (run on 0.23 only). The kit and the skill also work
   without Hermes, with any agent that can run commands.
 - `bun` (runs the kit, the pane and the player) and `git`.
 - A toolchain for the game. `kit status` lists each item as ok or MISSING with the line that gets it:
@@ -57,41 +58,47 @@ link. The player's flash guard does not depend on the base and is always on.
 
 ## Install
 
-From the Hermes plugin catalog:
+From the Hermes plugin catalog, then tell it where your game is:
 
     hermes plugins install rom-studio
+    hermes config set plugins.entries.rom-studio.settings.game_folder ~/rom-studio-game
 
 From a git checkout (a link, not a copy: the plugin runs the pane and the kit from the checkout):
 
     git clone https://github.com/erosika/rom-studio rom-studio
-    ln -sfn "$PWD/rom-studio" ~/.hermes/plugins/rom-studio
-    hermes plugins enable rom-studio
+    ./rom-studio/kit/kit plugin install --game ~/rom-studio-game
 
-Then restart Hermes. In the desktop app open Capabilities, Plugins, press Rescan and switch
-ROM Studio on (desktop halves start off). Check with:
+`kit plugin install` links the checkout into Hermes, saves the game folder in Hermes's own settings
+for the plugin and switches the plugin on. There is no restart and no `.env` to edit; a changed
+setting takes effect within ten seconds.
 
-    hermes plugins list            # rom-studio, enabled
-    hermes plugins doctor <the plugin's folder>
+- **Desktop app:** open Capabilities, Plugins and switch ROM Studio on (desktop halves start off).
+  The pane opens on the right, and a ROM Studio row appears in the sidebar.
+- **Web dashboard** (`hermes dashboard`): open the ROM Studio tab.
 
-Below, `<plugin>` is the plugin's folder: your checkout, or `~/.hermes/plugins/rom-studio` after a
-catalog install.
+Check with:
+
+    <plugin>/kit/kit plugin status    # linked? switched on? which game? what the pane says now
+    hermes plugins doctor rom-studio
+
+`docs/HERMES.md` is the two-minute start for the plugin alone, with what the pane says when
+something is wrong. Below, `<plugin>` is the plugin's folder: your checkout, or
+`~/.hermes/plugins/rom-studio` after a catalog install.
 
 ## First run
 
 1. **Check the tools.** `<plugin>/kit/kit status` lists what is missing and how to get it.
-2. **Choose a game folder and tell the plugin.** In the desktop app: Settings, Plugins, ROM Studio,
-   "Game folder". Or in `~/.hermes/config.yaml`:
+2. **Choose a game folder and tell the plugin**, if the install step did not already. In the
+   desktop app: Settings, Plugins, rom-studio, "Game folder". Or:
 
-       plugins:
-         entries:
-           rom-studio:
-             settings:
-               game_folder: ~/rom-studio-game
+       hermes config set plugins.entries.rom-studio.settings.game_folder ~/rom-studio-game
 
-   Use a new, empty folder. With a catalog install the kit's own default is `~/rom-studio-game`,
-   so that path needs nothing more; for any other folder also set `ROM_STUDIO_GAME` to it in the
-   environment your agent's commands run in. Restart Hermes.
-3. **Open the pane.** It is on the right in the desktop app, and at `http://127.0.0.1:8778/` in a browser.
+   Use a new, empty folder. The plugin picks the change up within ten seconds. The kit does not
+   read the plugin's settings: with a catalog install its own default is `~/rom-studio-game`, so
+   that path needs nothing more; for any other folder also set `ROM_STUDIO_GAME` to it in the
+   environment your agent's commands run in.
+3. **Open the pane.** It is on the right in the desktop app, the ROM Studio tab in the web
+   dashboard, and at `http://127.0.0.1:8778/` in a browser.
 4. **Bring your decomp in** (about 7 minutes, most of it the first build):
 
        <plugin>/kit/kit setup --decomp <your decomp's folder or git address>
@@ -109,9 +116,9 @@ The plugin itself registers no tools. The agent uses the kit, in one of two ways
 
 - **As commands.** `<plugin>/kit/kit help` is the manual: `status`, `setup`, `build`, `play`,
   `shot`, `press`, `where`, `maps`, `map`, `tileset`, `redraw`, `gates`, `lore`, `scenes`, `note`,
-  `reviews`, `decide`, `decisions`, `settings`, `workers`, `music`, `find`, `dialogue`, `keep`, `undo`,
-  `patch`.
-- **As MCP tools.** `kit/mcp.ts` serves the same 26 commands over MCP on stdio, one tool each.
+  `reviews`, `decide`, `decisions`, `settings`, `workers`, `music`, `find`, `pixel`, `dialogue`, `keep`,
+  `undo`, `patch`; and, as commands only, `codes`, `agent-play` and `plugin`.
+- **As MCP tools.** `kit/mcp.ts` serves the first 27 of those over MCP on stdio, one tool each.
   Add it to the host's configuration yourself. Hermes (`~/.hermes/config.yaml`):
 
       mcp_servers:
@@ -139,8 +146,8 @@ Skills.
 
 ## Settings
 
-Plugin settings (Settings, Plugins, ROM Studio; kept under `plugins.entries.rom-studio.settings`).
-Restart Hermes after changing one.
+Plugin settings (Settings, Plugins, rom-studio, or `hermes config set`; kept under
+`plugins.entries.rom-studio.settings`). A change takes effect within ten seconds, with no restart.
 
 | Setting | Default | What it is | Environment fallback |
 |---|---|---|---|
@@ -157,13 +164,11 @@ folder), `ARM_GCC`, `MGBA_PREFIX` and `SCRIPT_TOOL` (where those tools are), `PO
 also lists and serves the audio files in those folders), and the two network variables below.
 
 Game settings (`settings.json` in the game folder; `kit settings [key] [value]`): `player_name`,
-`player_look`, `original_game`, `private_scenes`, `image_model`, `workers`, `default_worker`, and
-the in-game link's `hermes_link`, `hermes_command`, `hermes_session`, `hermes_preface`,
-`hermes_timeout`. `docs/STUDIO.md` describes each. `hermes_command` counts only while it is still
-`hermes` (or a path to it); any other program has to be named by you, in `ROM_STUDIO_HERMES_COMMAND`.
+`player_look`, `original_game`, `private_scenes`, `image_model`, `workers` and `default_worker`.
+`docs/STUDIO.md` describes each.
 
 Every program the plugin and the kit start (the pane, the build and your decomp's Makefile, the
-emulator, the player, git, the in-game link's `hermes`) gets a short list of variables by name:
+emulator, the player, git) gets a short list of variables by name:
 `PATH`, `HOME`, the language and time-zone ones, `TMPDIR`, and the kit's own (`ROM_STUDIO_*`,
 `ARM_GCC`, `MGBA_PREFIX`, `SCRIPT_TOOL`, `JOBS`, `GAME_DIR`, `ROM`). None of them is handed the
 agent's environment, so no provider key reaches a build script (`kit/env.ts`).
@@ -174,8 +179,10 @@ Read this before installing.
 
 - **A background process.** When a game folder is set, the plugin starts the pane,
   `bun <plugin>/pane/server.ts`, listening on `127.0.0.1` at the pane port, unless something
-  already answers there. It stops that process when the plugin is unloaded or Hermes exits. A
-  thread checks the game's `feed.jsonl` every two seconds. With no game folder nothing is started.
+  already answers there, and starts it again if it stops. It stops that process when the plugin
+  is unloaded or Hermes ends, also when Hermes is killed outright. A thread checks the game's
+  `feed.jsonl` every two seconds and the plugin's settings every ten. With no game folder nothing
+  is started. A page you started yourself is never stopped.
 - **Who can reach the pane.** On 127.0.0.1 there is no sign-in: programs on your own computer
   can read the game folder's pictures and source through it, answer the agent's questions, send
   reference pictures, replace a song or sample with an uploaded file, change the helper list in
@@ -192,7 +199,7 @@ Read this before installing.
 - **The player** (`kit play`, started by you or your agent, not by the plugin) serves the built
   game on `127.0.0.1` with the same refusals. With `--phone` it also listens on your
   home-network addresses over https, with a certificate made on your computer and a key in the
-  link; the game file and the agent link need that key.
+  link; the game file needs that key.
 - **One address in front of both (optional).** On this computer the player also passes `/pane/`
   on to the pane, so someone who puts a single trusted address (a reverse proxy with its own
   certificate) in front of the player reaches both. `ROM_STUDIO_PANE_LOCAL` says where the pane
@@ -200,15 +207,8 @@ Read this before installing.
   host names the pane and the player should answer to; without it they answer only to
   `localhost` and bare addresses. Whoever can reach such a proxy reaches the pane as if from this
   computer, so protect it yourself.
-- **The in-game agent link.** Only a game built with the optional base has it (see above), so
-  with this repository alone it is absent. Where a game has it: the START menu's agent entry, in
-  the player, sends the words you type to the `hermes` command on your computer (`hermes chat`,
-  one conversation named `rom-studio-game` unless you name another, stopped after 60 seconds), and
-  the reply is shown in the game's message box. That run is your own agent with its normal tools
-  and its normal approval rules: it can do whatever your agent can do when you type to it in a
-  terminal. ROM Studio passes no approving or skipping flag, and a session name that looks like
-  a flag is refused. Over the phone link the route needs the link's key. Switch it off with
-  `"hermes_link": false` in the game folder's `settings.json` (`kit settings hermes_link false`).
+- **The in-game agent link is gone.** Up to 0.2.0 the player could hand words typed inside a
+  game to your own `hermes` command. Since 0.3.0 the player has no such route and starts no agent.
 - **Downloads, at setup only** (`kit setup`, never at plugin load):
   - the script compiler, a prebuilt Linux program, from its author's release page
     (`github.com/huderlem/poryscript`, release 3.6.1), checked against a sha256 written in
@@ -223,12 +223,14 @@ Read this before installing.
 - **What it writes.** In the game folder: the game's source and git history, `game.md`,
   `feed.jsonl`, `shots/`, `refs/`, `lore/`, `reviews.jsonl`, `decisions.jsonl`, `settings.json`
   and `out/` (the built game, logs, the patch). In the host's data folder for the plugin
-  (`~/.hermes/plugin-data/rom-studio/`): which pictures you starred, the pane's key, and an
-  uploaded archive while it is being set up. In the plugin's folder: the three caches above, and `player/.cert/` if you
+  (`~/.hermes/plugin-data/rom-studio/`): which pictures you starred, the pane's key, an
+  uploaded archive while it is being set up, `status.json` (what the pane says now) and
+  `pane.log` (the page's own output, with any key hidden). In the plugin's folder: the three caches above, and `player/.cert/` if you
   use the phone link. In `~/.hermes/config.yaml`: only the settings you enter.
 - **What it sends anywhere: nothing.** No telemetry, no accounts, no credentials. The pages load
-  no outside resources. The only network use is the downloads above and the in-game link's call
-  to your own agent.
+  no outside resources (the two typefaces ship in `pane/fonts/`). The only network use is the
+  downloads above, and `kit agent-play --provider` when you run it by hand: it sends the game's
+  pictures and text to the model API you name.
 - **It does not update itself.** A new version arrives only through `hermes plugins update`.
 
 ## The flash guard
@@ -241,11 +243,14 @@ it matters. Its tests are in `player/guard.test.ts`.
 
 ## Troubleshooting
 
-- **The pane says there is no game folder.** Set `game_folder` (Settings above) and restart Hermes.
-- **The pane says the page did not answer.** `bun` is not installed or not on the PATH Hermes
-  starts with, or the port is taken. Try `bun <plugin>/pane/server.ts --game <game folder>` in a
-  terminal and read what it prints. If nothing loads within eight seconds the pane says so and
-  gives the link to open in a browser.
+- **The pane says there is no game folder, or that the folder is missing.** Set `game_folder`
+  (Settings above); its Open settings button goes there. No restart is needed.
+- **The pane says bun is needed, the port is in use, or another game's page is open.** Each
+  message names the one thing to do. `<plugin>/kit/kit plugin status` prints the same sentence.
+- **The pane says the page did not answer or stopped.** Read
+  `~/.hermes/plugin-data/rom-studio/pane.log`, or try `bun <plugin>/pane/server.ts --game <game folder>`
+  in a terminal and read what it prints. If nothing loads within eight seconds the pane says so
+  and gives the link to open in a browser.
 - **A pane you run yourself** (for example with `--bind` so a phone can open it): put the link it
   printed, with its key, in `pane_url`, and the plugin shows that one and starts none.
 - **"From another device this pane opens only at its full link".** Use the link with the key.
@@ -268,7 +273,8 @@ it matters. Its tests are in `player/guard.test.ts`.
 ## Uninstall
 
     <plugin>/kit/kit play --stop        # if the player is running
-    hermes plugins remove rom-studio    # for a linked checkout this removes only the link and its settings
+    <plugin>/kit/kit plugin uninstall   # a linked checkout: the link, its settings and its switch
+    hermes plugins remove rom-studio    # a catalog install
     rm -rf ~/.hermes/desktop-plugins/rom-studio ~/.hermes/plugin-data/rom-studio
 
 Remove the `mcp_servers` entry and any `ROM_STUDIO_` variables if you added them. Your game
@@ -287,10 +293,11 @@ folder is yours and is left alone.
               v                                         |                         v
             pictures in shots/                    pane/server.ts            player/server.ts
                                                   127.0.0.1:8778            127.0.0.1:4870, flash guard
-                                                        ^                         |
-            Hermes plugin (this folder's root)          |                         | START menu agent entry
-              __init__.py   starts and stops the pane, watches the feed           v
-              dashboard/    one route: where the pane is                    hermes chat (your own agent)
+                                                        ^
+            Hermes plugin (this folder's root)          |
+              __init__.py   starts and stops the pane, watches the feed and the settings
+              common.py     the settings, the checks and the sentences the halves share
+              dashboard/    one route (where the pane is) and the tab in the web dashboard
               desktop/      shows the pane in the desktop app
 
 `docs/STUDIO.md` is the reference for every contract (commands, the feed, the pane, the player).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // pane/server.ts: one page that shows what the agent is doing with a game folder.
-//   bun pane/server.ts --game <dir> [--port 8778] [--bind 127.0.0.1] [--play <url>] [--data <dir>]
+//   bun pane/server.ts --game <dir> [--port 8778] [--bind 127.0.0.1] [--play <url>] [--data <dir>] [--until-stdin-closes]
 // The game folder can also come from $ROM_STUDIO_GAME, the play link from $ROM_STUDIO_PLAY.
 // This computer only unless --bind says otherwise. --bind 0.0.0.0 (or a private network address) lets a phone on the same
 // network open it, and only at the link with the key that is printed at start (/k/<key>/, kept in <data>/pane-key.txt).
@@ -13,6 +13,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSy
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { loreFiles, loreReport } from "../kit/lore";
 import { musicRoute } from "./music";
+import { pixelsRoute } from "./pixels";
 import { listenRoute } from "./listen";
 import { ARCHIVE_MAX, sourceRoute } from "./source";
 import { dialogueRoute } from "./dialogue";
@@ -30,7 +31,11 @@ const HERE = import.meta.dir, GAME = resolve(gameArg), SHOTS = join(GAME, "shots
 const PORT = Number(arg("port") ?? process.env.PORT ?? 8778), BIND = arg("bind") ?? "127.0.0.1";
 const PLAY = arg("play") ?? process.env.ROM_STUDIO_PLAY ?? null;
 const STATE_FILE = join(resolve(arg("data") ?? join(HERE, "data")), "pane-state.json");
+// --until-stdin-closes: the program that started the page (the Hermes plugin) holds the other end of its standard
+// input. When that program ends for any reason, even killed outright, the input closes and the page stops with it.
+if (process.argv.includes("--until-stdin-closes")) (async () => { try { for await (const _ of Bun.stdin.stream()) { /* never written to */ } } catch {} process.exit(0); })();
 const PAGE: Record<string, string> = { "/": "index.html", "/index.html": "index.html", "/pane.css": "pane.css", "/pane.js": "pane.js", "/desktop.css": "desktop.css", "/theme.js": "theme.js" };
+const FONTS = new Set(["IBMPlexMono-Medium.ttf", "IBMPlexMono-SemiBold.ttf", "Inter_18pt-Regular.ttf", "Inter_18pt-SemiBold.ttf"]); // the look's two typefaces (pane/fonts/README.md)
 const REF_TYPES = /\.(png|jpe?g|webp|gif)$/i, REF_MAX = 20_000_000; // reference pictures only, 20 MB each at most
 const PICTURE: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif" };
 const DATA = dirname(STATE_FILE), KEY_FILE = join(DATA, "pane-key.txt"), LOCAL_ONLY = /^(127\.|localhost$|::1$)/.test(BIND);
@@ -212,6 +217,26 @@ function lore(id: string | null) {
   });
 }
 
+// The helpers' written reports and drafts (out/handoff/reports/*.md): the list, newest first, and one report's text. Read-only.
+const REPORTS = join(GAME, "out", "handoff", "reports");
+const REPORT_NAME = /^[\w][\w.-]*\.md$/;
+function reportTitle(file: string) { // the first "# " heading in the opening lines, else the file name
+  const head = readFileSync(file, "utf8").slice(0, 2000).split("\n").find((l) => /^#\s+\S/.test(l));
+  return head ? head.replace(/^#\s+/, "").trim() : null;
+}
+function reports(name: string | null) {
+  if (!existsSync(REPORTS)) return name ? null : [];
+  if (!name) {
+    const files = readdirSync(REPORTS).filter((f) => REPORT_NAME.test(f)).map((f) => ({ name: f, ...(() => { try { const s = statSync(join(REPORTS, f)); return s.isFile() ? { t: s.mtimeMs, size: s.size } : null; } catch { return null; } })() }));
+    const ok = files.filter((f) => f.t !== undefined) as { name: string; t: number; size: number }[];
+    return cached("reports", ok.map((f) => `${f.name}:${f.t}`).join(), () => ok.map((f) => ({ ...f, title: reportTitle(join(REPORTS, f.name)) ?? f.name.replace(/\.md$/, "") })).sort((a, b) => b.t - a.t));
+  }
+  if (!REPORT_NAME.test(name)) return null;
+  const file = join(REPORTS, name);
+  try { if (!realpathSync(file).startsWith(realpathSync(REPORTS) + sep) || !statSync(file).isFile()) return null; } catch { return null; } // a link that leads out is no report
+  return { name, t: statSync(file).mtimeMs, text: readFileSync(file, "utf8") };
+}
+
 // what the page may change in settings.json; every other key stays as it is
 const SETTABLE = ["image_model", "image_models", "workers", "default_worker"];
 async function post(req: Request, path: string) {
@@ -247,6 +272,7 @@ const isPage = (path: string) => path in PAGE || path === "/listen" || path === 
 async function handle(req: Request, path: string) {
   const name = basename(path);
   const music = await musicRoute(req, path, GAME); if (music) return music;
+  const pixels = await pixelsRoute(req, path, GAME); if (pixels) return pixels;
   const heard = listenRoute(req, path, GAME); if (heard) return heard;
   const source = await sourceRoute(req, path, GAME, DATA); if (source) return source;
   const lines = await dialogueRoute(req, path, GAME); if (lines) return lines;
@@ -262,11 +288,13 @@ async function handle(req: Request, path: string) {
     return new Response(body, { headers: { "Content-Type": "application/json", ETag: etag, "Cache-Control": "no-cache" } });
   }
   if (path === "/lore" || path.startsWith("/lore/")) { const r = lore(path === "/lore" ? null : name); return r ? Response.json(r, { headers: { "Cache-Control": "no-cache" } }) : new Response("no such lore id", { status: 404 }); }
+  if (path === "/reports" || path.startsWith("/reports/")) { const r = reports(path === "/reports" ? null : name); return r ? Response.json(r, { headers: { "Cache-Control": "no-cache" } }) : new Response("no such report", { status: 404 }); }
   if (path.startsWith("/shots/")) return send(join(SHOTS, name), /\.png$/i.test(name), GAME);
   if (path.startsWith("/refs/")) return send(join(REFS, name), REF_TYPES.test(name), GAME);
   if (path.startsWith("/farb/")) { if (!farBefore.length) state(); return send(farBefore[Number(path.split("/")[2])] ?? null); }
   if (path.startsWith("/far/")) { if (!far.length) state(); return send(far[Number(path.split("/")[2])] ?? null); } // only pictures the feed names
   if (path.startsWith("/map/")) return send(maps().some((m) => m.name === name) ? mapPicture(name) : null);
+  if (path.startsWith("/fonts/") && FONTS.has(path.slice(7))) return new Response(Bun.file(join(HERE, "fonts", path.slice(7))), { headers: { "Content-Type": "font/ttf", "Cache-Control": "max-age=86400" } });
   if (PAGE[path]) return new Response(Bun.file(join(HERE, PAGE[path])), { headers: { "Cache-Control": "no-cache", ...(PAGE[path] === "index.html" ? { "Content-Security-Policy": POLICY } : {}) } });
   return new Response("not found", { status: 404 });
 }

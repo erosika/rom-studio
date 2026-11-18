@@ -2,8 +2,7 @@
 // flash guard (guard.js, always on, no switch) and only the guarded picture is drawn on screen.
 // Plain JS, unbundled: the emulator starts its workers from its own script URL.
 import { createGuard } from "/guard.js";
-import { captureMemory, gameMemory, startLink } from "/hermes-link.js";
-import { probe } from "/ram.js";
+import { captureMemory, gameMemory, probe } from "/ram.js";
 import { encodeLabel, normalize } from "/game-text.js";
 import { SLOW_RUN, advice, buildOfName, clock, fileName, lacks, lacksSaves, namingMax, pace, pointProblem, saveProblem } from "/checks.js";
 captureMemory(); // before the emulator's script makes its memory
@@ -210,7 +209,6 @@ async function boot() {
   session.set(`asleep:${id}`, null);
   source = emuCanvas;
   log(`game running, build ${build}${lowPower ? ", low power" : ""} (${navigator.userAgent.slice(0, 80)})`);
-  startLink(emu, { log, key }).catch((err) => log(`agent link error: ${err?.message ?? err}`));
 
   // ---- the game's memory, found once: the emulator's frame counter for the pace, the naming screen for typing ----
   let ram = null;
@@ -244,7 +242,7 @@ async function boot() {
     if (document.hidden || leaving) return;
     let now = null; try { const r = await api("/game"); now = r.ok ? await r.json() : null; } catch {}
     misses = now ? 0 : misses + 1;
-    if (misses === 2) { lost = true; notice("Lost the connection to the computer. The game keeps running here and its saves stay in this browser; the agent and new builds need the connection back."); }
+    if (misses === 2) { lost = true; notice("Lost the connection to the computer. The game keeps running here and its saves stay in this browser; new builds need the connection back."); }
     if (now && lost) { lost = false; notice(null); }
     if (now?.build && now.build !== info.build && $("noticeDo").dataset.build !== now.build) { $("noticeDo").dataset.build = now.build; notice("A newer build of the game is ready on the computer. Save inside the game first if you want to keep your place.", "load the new build", () => reload(true)); }
   }, 5000);

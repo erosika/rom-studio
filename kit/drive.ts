@@ -263,7 +263,8 @@ try {
       await frames(4);
       console.log(`script: ${name} started`);
     } else if (step === "bytes") { // script commands given as bytes, run from the game's text buffer: how kit music starts a song by its number
-      const hex = args[i++] ?? die("bytes needs script bytes in hex"), ctx = need("sGlobalScriptContext"), at = need("gStringVar4");
+      const hex = args[i++] ?? die("bytes needs script bytes in hex"), ctx = need("sGlobalScriptContext"), at = need("gStringVar4") + 900; // far end of the text buffer: a script that waits across a battle is not overwritten by the game's own text
+      if (hex.length > 200) die("bytes: at most 100 script bytes fit at the far end of the text buffer");
       if (!(await waitForField(600))) console.log("bytes: the player has no control right now; trying anyway");
       await cmd(`write ${at.toString(16)} ${hex}`); await w32(ctx + 92, need("gScriptCmdTable")); await w32(ctx + 96, need("gScriptCmdTableEnd"));
       await w32(ctx + 8, at); await write(ctx, [0, 1, 0, 0]); await write(need("sLockFieldControls"), [1]); await write(need("sGlobalScriptContextStatus"), [0]);

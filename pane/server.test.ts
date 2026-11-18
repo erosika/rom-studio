@@ -163,6 +163,20 @@ test("the page has the answer buttons, the Decisions and Settings tabs and the s
 
 // ---- who may ask, and for what ----
 const status = async (path: string, init?: RequestInit) => (await fetch(`${URL_}${path}`, init)).status;
+test("reports: the helpers' written reports are listed newest first with their titles, one opens as text, and nothing outside the folder does", async () => {
+  const dir = join(game, "out/handoff/reports"); mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "old-job.md"), "# The old job\n\nDone.\n"); Bun.spawnSync(["touch", "-d", "2020-01-01", join(dir, "old-job.md")]);
+  writeFileSync(join(dir, "ending-draft.md"), "intro line\n# THE BIG OFF\n\n```\nTEKNIUM: Stop there.\n```\n");
+  writeFileSync(join(dir, "notes.txt"), "not a report\n"); symlinkSync(join(data, "secret.md"), join(dir, "link.md"));
+  const list = await (await fetch(`${URL_}/reports`)).json();
+  expect(list.map((r: { name: string }) => r.name)).toEqual(["ending-draft.md", "old-job.md"]);
+  expect(list[0].title).toBe("THE BIG OFF");
+  const one = await (await fetch(`${URL_}/reports/ending-draft.md`)).json();
+  expect(one.text).toContain("TEKNIUM: Stop there.");
+  for (const path of ["/reports/link.md", "/reports/notes.txt", "/reports/..%2F..%2Fgame.md", "/reports/%2e%2e%2fsecret.md", "/reports/nothing.md"]) expect(`${path} ${(await fetch(`${URL_}${path}`)).status}`).toBe(`${path} 404`);
+  rmSync(join(dir, "link.md"));
+});
+
 test("a path that climbs out of its folder is refused on every kind of route, and so is a link that leads out", async () => {
   writeFileSync(join(data, "secret.md"), "not yours\n"); mkdirSync(join(game, "out/music"), { recursive: true }); mkdirSync(join(game, "lore"), { recursive: true });
   symlinkSync(join(data, "secret.md"), join(game, "shots", "link.png")); symlinkSync(join(data, "secret.md"), join(game, "out/music", "link.wav"));

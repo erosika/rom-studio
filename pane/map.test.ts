@@ -13,8 +13,12 @@ const PNG = "\x89PNG\r\n\x1a\nstand-in";
 
 beforeAll(async () => {
   const here = import.meta.dir, kit = join(here, "../kit");
-  cpSync(here, join(root, "pane"), { recursive: true, filter: (f) => !f.includes("/sample") });
-  cpSync(kit, join(root, "kit"), { recursive: true, filter: (f) => !f.endsWith("/kit.ts") && !f.includes("/emu") });
+  // only the checkout's own files: not the pane's data or the kit's cache (gigabytes of saved states that made this
+  // copy outlast the five-second limit for setting up on a busy machine)
+  const skip = [join(here, "data"), join(kit, ".cache")];
+  const own = (f: string) => !skip.some((d) => f === d || f.startsWith(`${d}/`)) && !/\/(__pycache__|node_modules)(\/|$)/.test(f);
+  cpSync(here, join(root, "pane"), { recursive: true, filter: (f) => !f.includes("/sample") && own(f) });
+  cpSync(kit, join(root, "kit"), { recursive: true, filter: (f) => !f.endsWith("/kit.ts") && !f.includes("/emu") && own(f) });
   writeFileSync(join(root, "kit/kit.ts"), `import { appendFileSync, mkdirSync, writeFileSync } from "node:fs"; import { dirname } from "node:path";
 const a = process.argv.slice(2); appendFileSync(${JSON.stringify(calls)}, a.join(" ") + "\\n");
 if (a[0] !== "map") process.exit(1);

@@ -3,19 +3,18 @@
 //   bun player/server.ts          http://127.0.0.1:<port>/   (laptop)
 //   bun player/server.ts --lan    also https://<this computer>:<port+1>/#k=<key> for a phone on the same network
 // The emulator needs cross-origin isolation, which browsers grant only on localhost or https; so the
-// phone address is https with a certificate made here (the phone shows a warning once), and the ROM, the
-// agent link and the page's log line are only answered over it with the key.
-// The agent link runs the host's own command line with the player's words on its standard input, never as an
-// argument: no flag that approves tools or skips a permission is passed, so the agent can do what the user's own
-// host setup lets a quiet one-shot chat do and no more; a question it would ask a person meets a closed input.
+// phone address is https with a certificate made here (the phone shows a warning once), and the ROM and the
+// page's log line are only answered over it with the key.
+// The live link to the user's own Hermes (a box for typed words under the screen, the page<->agent relay) is not in
+// this player; it was taken out in 0.3.0.
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { homedir, networkInterfaces } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { tableFrom } from "./game-text.js";
 import { namingTextOffset } from "./checks.js";
 import { childEnv } from "../kit/env";
-import { bodyUpTo, fromElsewhere, hostIsOwn, sameKey, saysJson, tooBig } from "../kit/web";
+import { bodyUpTo, fromElsewhere, hostIsOwn, sameKey } from "../kit/web";
 
 const HERE = import.meta.dir;
 const ROM = process.env.ROM ?? join(HERE, "../../rom-studio-game/out/game.gba");
@@ -26,7 +25,6 @@ const FILES: Record<string, [string, string]> = {
   "/play.js": [join(HERE, "play.js"), "text/javascript"],
   "/guard.js": [join(HERE, "guard.js"), "text/javascript"],
   "/game-text.js": [join(HERE, "game-text.js"), "text/javascript"],
-  "/hermes-link.js": [join(HERE, "hermes-link.js"), "text/javascript"],
   "/ram.js": [join(HERE, "ram.js"), "text/javascript"],
   "/checks.js": [join(HERE, "checks.js"), "text/javascript"],
   "/mgba/mgba.js": [join(MGBA, "mgba.js"), "text/javascript"],
@@ -34,67 +32,10 @@ const FILES: Record<string, [string, string]> = {
 };
 let zipped: { mtime: number; body: Uint8Array } | null = null; // the ROM is mostly padding: gzip once per build
 
-// ---- the in-game agent link: the game's START menu entry asks, this forwards the words to the user's agent ----
-// settings.json in the game folder: hermes_link (default on when the game has the mailbox), hermes_command (default
-// "hermes"), hermes_session (one named conversation, continued across messages), hermes_preface, hermes_timeout (seconds).
+// the game folder: where the build's symbols and the naming screen's source are read from
 const GAME = process.env.GAME ?? dirname(dirname(ROM));
-const settings = (): Record<string, any> => { try { const s = JSON.parse(readFileSync(join(GAME, "settings.json"), "utf8")); return s && typeof s === "object" ? s : {}; } catch { return {}; } };
 const symbol = (name: string): number | null => { try { const m = new RegExp(`^([0-9a-f]{8}) .* ${name}$`, "m").exec(readFileSync(ROM.replace(/\.gba$/, ".sym"), "utf8")); return m ? parseInt(m[1]!, 16) : null; } catch { return null; } };
 const read = (rel: string) => { try { return readFileSync(join(GAME, rel), "utf8"); } catch { return ""; } };
-export const PREFACE = "[Note: these words were typed inside the user's own game, through the agent entry of its START menu, and your reply is shown in the game's " +
-  "two-line message box. Answer as yourself, briefly: plain text, no markdown, no emoji, under 300 characters unless asked for more. If you offer choices, " +
-  "put each on its own line as \"1. ...\", \"2. ...\" (two to four, 14 characters or fewer each); the game turns them into a menu.]";
-let places: Map<string, string> | null = null; // "group.num" -> the place's name in the game
-function place(at: any): string {
-  if (!at || typeof at.group !== "number") return "";
-  if (!places) {
-    places = new Map();
-    try {
-      const ids = new Map<string, string>(), names = new Map<string, string>();
-      for (const m of read("include/constants/map_groups.h").matchAll(/(MAP_\w+)\s*=\s*\((\d+) \| \((\d+) << 8\)\)/g)) ids.set(m[1]!, `${m[3]}.${m[2]}`);
-      for (const s of JSON.parse(read("src/data/region_map/region_map_sections.json") || "{}").map_sections ?? []) if (s.name) names.set(s.id, s.name);
-      for (const d of readdirSync(join(GAME, "data/maps"))) { const j = read(`data/maps/${d}/map.json`); if (!j) continue; const m = JSON.parse(j), k = ids.get(m.id); if (k) places.set(k, names.get(m.region_map_section) ?? d); }
-    } catch {}
-  }
-  const name = places.get(`${at.group}.${at.num}`);
-  return name ? `[In the game right now the player is at ${name}, square ${Number(at.x) || 0},${Number(at.y) || 0}.]` : "";
-}
-let busy = false;
-const NO_SIGNAL = "No signal. Try me again.", REPLY_MAX = 20_000;
-/** The host's command. settings.json can be written by `kit settings`, so a command there counts only when it is still
- *  the host's own (`hermes`, or a path to it); any other program has to be named by the user, in ROM_STUDIO_HERMES_COMMAND. */
-export function hermesCommand(s: Record<string, any>, own = process.env.ROM_STUDIO_HERMES_COMMAND): string[] {
-  const words = (v: unknown) => String(v ?? "").split(/\s+/).filter(Boolean);
-  if (words(own).length) return words(own);
-  const set = words(s.hermes_command);
-  return set.length && /(^|\/)hermes$/.test(set[0]) ? set : ["hermes"];
-}
-/** The command line the words are handed to: the host's own, one named conversation, quiet, the words on standard input. */
-export function agentCommand(s: Record<string, any>): string[] {
-  const cmd = hermesCommand(s), session = /^[\w.][\w.-]{0,63}$/.test(String(s.hermes_session ?? "")) ? String(s.hermes_session) : "rom-studio-game"; // never a word that reads as a flag; the default is this plugin's own, not a name another tool may use
-  return [...cmd, "chat", "--query-file", "-", "-Q", "-c", session, "--create-if-missing", "--source", "game"];
-}
-export async function ask(text: string, at: unknown): Promise<string> {
-  const s = settings(), secs = Math.min(Math.max(Number(s.hermes_timeout) || 60, 1), 240); // the connection itself is given up on after 255 s
-  const body = [typeof s.hermes_preface === "string" ? s.hermes_preface : PREFACE, place(at), "", text].filter((l, i) => l || i === 2).join("\n");
-  let proc: ReturnType<typeof Bun.spawn>;
-  try { proc = Bun.spawn(agentCommand(s), { cwd: homedir(), env: childEnv(), stdin: new Blob([body]), stdout: "pipe", stderr: "pipe" }); }
-  catch { return NO_SIGNAL; }
-  let timer: ReturnType<typeof setTimeout>, hard: ReturnType<typeof setTimeout> | undefined;
-  const late = new Promise<"late">((done) => { timer = setTimeout(() => { proc.kill(); hard = setTimeout(() => proc.kill("SIGKILL"), 2000); done("late"); }, secs * 1000); });
-  const read = async (stream: ReadableStream<Uint8Array>, max: number) => { let out = ""; const dec = new TextDecoder(); for await (const c of stream) if (out.length < max) out += dec.decode(c, { stream: true }); return out; };
-  const done = Promise.all([read(proc.stdout as ReadableStream<Uint8Array>, REPLY_MAX), read(proc.stderr as ReadableStream<Uint8Array>, 4000), proc.exited]);
-  const r = await Promise.race([done, late]); clearTimeout(timer!); // a child of the command may hold the pipes open: the time limit does not wait for them
-  if (r === "late") { done.catch(() => {}).finally(() => clearTimeout(hard)); console.log(`agent link: no answer in ${secs} s; the command was stopped`); return NO_SIGNAL; }
-  const [out, err, code] = r;
-  if (code !== 0) { console.log(`agent link: the command failed: ${(err.trim().split("\n").at(-1) ?? String(code)).replace(/[^\x20-\x7e]/g, " ").slice(0, 300)}`); return NO_SIGNAL; }
-  return out.trim().slice(0, REPLY_MAX) || "…";
-}
-function linkInfo() {
-  const s = settings(), mailbox = symbol("gHermesMailbox"), charmap = read("charmap.txt");
-  return { mailbox, hook: symbol("gStudioMailbox"), on: mailbox !== null && !!charmap && s.hermes_link !== false, player: String(s.player_name ?? "YOU").toUpperCase(), agent: String(s.hermes_name ?? "HERMES"),
-    table: tableFrom(charmap, read("src/fonts.c")) };
-}
 /** What the page needs to know about the game before and while it runs: a name for its saves that stays the same across
  *  builds (and gives away no folder), which build is on disk now (null: none yet), and where the game's own naming screen keeps its text. */
 export function gameInfo() {
@@ -109,7 +50,7 @@ let known: { build: string | null; rest: { id: string; naming: { at: number; tex
 
 const PANE = process.env.ROM_STUDIO_PANE_LOCAL ?? "http://127.0.0.1:8778"; // where the pane listens on this computer
 const DROP = /^(host|origin|referer|cookie|connection|content-length|sec-fetch-.*)$/i; // checked here; the pane is asked as this computer
-/** One listener's answers. `key` is null on this computer's own address; over the network it is needed for the game, the agent link and the log. */
+/** One listener's answers. `key` is null on this computer's own address; over the network it is needed for the game and the log. */
 export function handler(key: string | null, host: string | null = null) {
   const no = (text: string, status: number) => new Response(text, { status, headers: ISOLATED });
   return async (req: Request) => {
@@ -131,20 +72,6 @@ export function handler(key: string | null, host: string | null = null) {
       const said = await bodyUpTo(req, 4000);
       console.log(`page: ${Buffer.from(said ?? []).toString("utf8").replace(/[^\x20-\x7e]/g, " ").slice(0, 500)}`); return no("ok", 200); // one line, whatever was sent
     }
-    if (path === "/hermes/info" && req.method === "GET") return keyed() ? Response.json(linkInfo(), { headers: ISOLATED }) : no("open the full link with its key once", 401);
-    if (path === "/hermes/ask" && req.method === "POST") {
-      if (!keyed()) return no("open the full link with its key once", 401);
-      if (!saysJson(req)) return no("the words must be sent as application/json", 415);
-      const raw = await bodyUpTo(req, 16_000); if (!raw) return tooBig("too long", ISOLATED);
-      let b: { text?: unknown; at?: unknown } = {}; try { b = JSON.parse(Buffer.from(raw).toString("utf8")) ?? {}; } catch {}
-      const { text, at } = b;
-      if (!text || typeof text !== "string") return Response.json({ error: "empty" }, { status: 400, headers: ISOLATED });
-      if (!linkInfo().on) return Response.json({ reply: "The link is switched off." }, { headers: ISOLATED });
-      if (busy) return Response.json({ reply: "Still answering the last one." }, { headers: ISOLATED });
-      busy = true;
-      try { const t0 = Date.now(), reply = await ask(text.slice(0, 2000), at); console.log(`agent link: answered in ${Math.round((Date.now() - t0) / 1000)} s`); return Response.json({ reply }, { headers: ISOLATED }); }
-      finally { busy = false; }
-    }
     if (path === "/game" && req.method === "GET") return keyed() ? Response.json(gameInfo(), { headers: ISOLATED }) : no("open the full link with its key once", 401);
     if (path === "/rom" && req.method === "GET") {
       if (!keyed()) return no("open the full link with its key once", 401);
@@ -162,7 +89,7 @@ if (import.meta.main) {
 if (!existsSync(join(MGBA, "mgba.js"))) { console.error(`emulator files missing. Run: cd ${HERE} && bun install`); process.exit(1); }
 let port = Number(process.env.PORT ?? 4870);
 for (let tries = 0; ; tries++, port += 2) {
-  try { Bun.serve({ hostname: "127.0.0.1", port, idleTimeout: 255, fetch: handler(null) }); break; } // an answer from the agent may take a minute
+  try { Bun.serve({ hostname: "127.0.0.1", port, idleTimeout: 255, fetch: handler(null) }); break; }
   catch (e) { if (tries >= 20) { console.error(`no free port near ${port}: set PORT`); process.exit(1); } }
 }
 console.log(`play on this computer:  http://127.0.0.1:${port}/`);

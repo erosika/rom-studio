@@ -1,1 +1,1 @@
-{"name": "rom-studio", "label": "ROM Studio", "version": "0.2.0", "description": "Tells the ROM Studio pane where its page is.", "api": "plugin_api.py", "entry": "dist/index.js", "tab": {"hidden": true}}
+{"name": "rom-studio", "label": "ROM Studio", "version": "0.3.0", "description": "Watch your game being made: the ROM Studio pane in a tab.", "icon": "Cpu", "api": "plugin_api.py", "entry": "dist/index.js", "tab": {"path": "/rom-studio", "position": "end"}}

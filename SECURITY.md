@@ -30,9 +30,8 @@ owners who put one trusted address in front of both.
 3. The decomp is code you chose to trust: building it runs its build scripts as you. They run with a
    short list of variables by name (`kit/env.ts`), never the agent's environment, so they cannot
    read its provider keys from there; they can still read your files.
-4. The in-game agent link (only in a game built with the optional base, which this repository
-   does not carry) runs your own `hermes` command with your agent's normal tools and approval
-   rules. ROM Studio never passes a flag that skips approvals. `"hermes_link": false` turns it off.
+4. The player starts no agent. Up to 0.2.0 an in-game link could run your own `hermes` command;
+   it was taken out in 0.3.0.
 5. Nothing is sent to anyone. Setup downloads two things, each pinned (a sha256 in `kit/kit.ts`,
    a sha512 in `player/bun.lock`); nothing updates itself. A reverse proxy you put in front
    (`ROM_STUDIO_HOSTS`) is yours to protect: what reaches it reaches the pane as this computer.

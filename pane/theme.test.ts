@@ -9,17 +9,17 @@ function page(embedded = true) {
   const values = new Map(), listeners: Record<string, Function> = {};
   const root = { dataset: { theme: "dark" } as Record<string, string>, style: { setProperty: (k: string, v: string) => values.set(k, v), removeProperty: (k: string) => values.delete(k) } };
   const btn = { hidden: false, textContent: "", onclick: null as null | Function };
-  const parent = { postMessage() {} }, window: any = {};
+  const parent = { postMessage() {} }, window: any = {}, timers: Function[] = [];
   window.parent = embedded ? parent : window;
   runInNewContext(readFileSync(file, "utf8"), {
     window, parent: window.parent, document: { documentElement: root, getElementById: () => btn },
     location: { search: embedded ? "?host=desktop&hostOrigin=http%3A%2F%2Flocalhost%3A9455" : "" }, URLSearchParams,
     localStorage: { paneTheme: "dark" }, matchMedia: () => ({ matches: false, addEventListener() {} }),
     CSS: { supports: (_: string, value: string) => !value.includes("url(") },
-    addEventListener: (name: string, f: Function) => listeners[name] = f,
+    addEventListener: (name: string, f: Function) => listeners[name] = f, setTimeout: (f: Function) => timers.push(f),
   });
   const send = (tokens: object, source = parent, origin = "http://localhost:9455", mode = "light") => listeners.message?.({ source, origin, data: { type: "rom-studio:theme", version: 1, mode, tokens } });
-  return { root, btn, values, send, parent };
+  return { root, btn, values, send, parent, timers };
 }
 
 test("embedded pane follows parent colors and mode instead of saved pane preference", () => {
@@ -56,4 +56,16 @@ test("a standalone page retains its own dark/light control", () => {
   p.btn.onclick?.();
   expect(p.root.dataset.theme).toBe("light");
   expect(p.btn.textContent).toBe("Dark mode");
+});
+
+test("a host that never sends its colours still gets a page: its own palette, after a moment", () => {
+  const p = page();
+  p.root.dataset.embedded = "true";
+  p.timers.forEach((f) => f());
+  expect(p.root.dataset.embedded).toBeUndefined();
+  const q = page();
+  q.root.dataset.embedded = "true";
+  q.send({ "--bg": "#fefefe" });
+  q.timers.forEach((f) => f());
+  expect(q.root.dataset.embedded).toBe("true"); // colours arrived: the page stays the host's
 });

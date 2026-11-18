@@ -64,6 +64,9 @@ const TOOLS: Record<string, [string, Props, string[], (a: Record<string, any>) =
     { text: str("The text to look for; any capitals match"), in: str("Only in files matching this glob, e.g. data/maps/** or *.inc"), regex: bool("The text is a pattern (matched as written)"), max: str("Lines to return (default 200)"),
       file: str("Instead: a file in the game folder to read"), at: str("file only: the line to centre on"), span: str("file only: lines each side (default 20)"), json: bool("As JSON") }, [],
     (a) => [...(a.file ? ["--file", a.file] : a.text ? [a.text] : []), ...["in", "max", "at", "span"].flatMap((k) => (a[k] ? [`--${k}`, String(a[k])] : [])), ...(a.regex ? ["--regex"] : []), ...(a.json ? ["--json"] : [])]],
+  pixel: ["The pixel step, after any generated or redrawn picture. find: look for stray pixels in indexed pictures (lone pixels and pairs, colours hardly used, soft-edge leftovers, palette entries nearly alike) and write a zoomed sheet with each finding ringed and numbered, close-ups and a list; look at the sheet before deciding. edit: apply the edits file kept beside the picture (<png>.edits.json: set, fill, replace, copy) without changing its palette or size; undo restores the original. Never regenerate a picture to fix a speck.",
+    { what: str("find or edit"), png: str("The picture, a path in the game folder (find takes several, separated by spaces)"), crop: str("find only: look at this part, x,y,w,h"), undo: bool("edit only: put the original back"), json: bool("find only: as JSON") }, ["what", "png"],
+    (a) => [a.what, ...String(a.png).split(/\s+/).filter(Boolean), ...(a.crop ? ["--crop", a.crop] : []), ...(a.undo ? ["--undo"] : []), ...(a.json ? ["--json"] : [])]],
   dialogue: ["Every line a player can read, by the place it is said in: the text's name, then one line per text box. By default what was written since setup (texts in new scripts and texts changed in old ones). With notes: the notes the user wrote on single texts in the pane's Dialogue tab, each with the text as it reads now; read them before and after dialogue work. With done: mark a note dealt with once you changed its text.",
     { words: str("Only the texts that hold these words; any capitals match"), in: str("Only this place or folder, e.g. data/maps/HarbourTown"), only: str("new or changed"), all: bool("Also the original game's untouched texts"), story: bool("Places in the order a player reaches them"),
       notes: bool("Instead: the user's waiting notes"), done: str("Instead: the name of the text whose note is dealt with, or all"), page: str("Instead: write it all as one page to this .html file"), json: bool("As JSON") }, [],
@@ -90,7 +93,7 @@ async function call(name: string, a: Record<string, any>) {
 }
 
 async function handle(m: any): Promise<any> {
-  if (m.method === "initialize") return { protocolVersion: m.params?.protocolVersion ?? "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "rom-studio-kit", version: "0.2.0" } };
+  if (m.method === "initialize") return { protocolVersion: m.params?.protocolVersion ?? "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "rom-studio-kit", version: "0.3.0" } };
   if (m.method === "ping") return {};
   if (m.method === "tools/list") return { tools: Object.entries(TOOLS).map(([name, [description, properties, required]]) => ({ name, description, inputSchema: { type: "object", properties, required } })) };
   if (m.method === "tools/call") return call(m.params?.name, m.params?.arguments ?? {});
